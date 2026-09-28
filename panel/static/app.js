@@ -1,0 +1,19 @@
+const mode=document.body.dataset.mode;
+const byId=id=>document.getElementById(id);
+const urlForPort=(port)=>location.origin.replace(/-\d+\.proxy\.runpod\.net$/,`-${port}.proxy.runpod.net`);
+if(byId('comfy-link'))byId('comfy-link').href=urlForPort(3000);
+if(byId('models-link'))byId('models-link').href=urlForPort(8081);
+if(byId('outputs-link'))byId('outputs-link').href=urlForPort(8083);
+async function api(url,options={}){const res=await fetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let obj={};try{obj=await res.json()}catch{}if(!res.ok)throw Error(typeof obj.detail==='string'?obj.detail:`Ошибка HTTP ${res.status}`);return obj}
+function show(id,message,kind=''){let el=byId(id);el.textContent=message;el.className=`status ${kind}`}
+async function track(id,statusId,button){button.disabled=true;try{while(true){await new Promise(r=>setTimeout(r,1100));let j=await api('/api/jobs/'+id);show(statusId,`${j.done}/${j.total} файлов · ${j.current||'Подготовка…'}`);if(j.state==='done'){show(statusId,`Готово: ${j.done} файлов на месте.`,'good');break}if(j.state==='failed'){show(statusId,j.error,'error');break}}}catch(e){show(statusId,e.message,'error')}finally{button.disabled=false}}
+if(mode==='models'){
+ async function refreshPreset(){try{let p=await api('/api/preset');let ul=byId('preset-files');ul.replaceChildren();for(let file of p.files){let li=document.createElement('li'),dot=document.createElement('span'),name=document.createElement('span');dot.className='dot'+(file.ready?' ok':'');name.textContent=file.filename.split('/').pop();li.append(dot,name);ul.append(li)}}catch(e){show('preset-status',e.message,'error')}}
+ refreshPreset();
+ byId('download-preset').onclick=async()=>{let button=byId('download-preset');try{let token=byId('hf-token').value;let r=await api('/api/preset',{method:'POST',body:JSON.stringify({token})});byId('hf-token').value='';await track(r.id,'preset-status',button);await refreshPreset()}catch(e){show('preset-status',e.message,'error')}};
+ byId('inspect-lora').onclick=async()=>{try{show('lora-status','Ищем файлы…');let r=await api('/api/loras',{method:'POST',body:JSON.stringify({repo:byId('lora-repo').value,token:byId('lora-token').value})});let sel=byId('lora-file');sel.replaceChildren();for(let name of r.files){let o=document.createElement('option');o.value=name;o.textContent=name;sel.append(o)}byId('lora-picker').classList.toggle('hidden',!r.files.length);show('lora-status',r.files.length?`Найдено файлов: ${r.files.length}`:'В репозитории нет файлов .safetensors')}catch(e){show('lora-status',e.message,'error')}};
+ byId('download-lora').onclick=async()=>{try{let token=byId('lora-token').value;let r=await api('/api/loras/download',{method:'POST',body:JSON.stringify({repo:byId('lora-repo').value,filename:byId('lora-file').value,token})});byId('lora-token').value='';await track(r.id,'lora-status',byId('download-lora'))}catch(e){show('lora-status',e.message,'error')}};
+}
+if(mode==='outputs'){
+ let folder='';async function refresh(){try{let data=await api('/api/outputs?path='+encodeURIComponent(folder)),list=byId('output-list');list.replaceChildren();byId('folder-path').textContent='/outputs'+(folder?'/'+folder:'');for(let file of data.files){let row=document.createElement('div'),a=document.createElement('a'),size=document.createElement('span');row.className='file';a.textContent=(file.directory?'📁  ':'↓  ')+file.name;if(file.directory)a.onclick=()=>{folder=file.path;refresh()};else a.href='/api/outputs/file?path='+encodeURIComponent(file.path);size.textContent=file.size;row.append(a,size);list.append(row)}show('output-status',data.files.length?'': 'Папка пуста')}catch(e){show('output-status',e.message,'error')}}byId('refresh-outputs').onclick=refresh;byId('up-folder').onclick=()=>{folder=folder.split('/').slice(0,-1).join('/');refresh()};refresh();
+}
