@@ -33,5 +33,5 @@ RUN mkdir -p /data/models /data/inputs /data/outputs && \
 
 ENV PYTHONPATH=/opt/iunoasc IUNO_DATA_DIR=/data HF_HOME=/data/.hf-cache
 ENV IUNO_H3_DIFFUSION_FILE=diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
-EXPOSE 3000 8081 8083
+EXPOSE 3000
 CMD ["/opt/iunoasc/start.sh"]
