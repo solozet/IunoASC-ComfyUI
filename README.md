@@ -1,6 +1,6 @@
 # IunoASC ComfyUI (draft)
 
-A minimal RunPod ComfyUI container with native MiniMax H3, Manager, a Hugging Face downloader and an output browser. No persistent volume or model files in the image. **Source draft; no Docker build or GPU run has been performed.**
+A minimal RunPod ComfyUI container with native MiniMax H3, Manager, a Hugging Face downloader and an output browser. No persistent volume or model files in the image. **Both images built in GitHub Actions; a GPU run has not yet been performed.**
 
 ## Interfaces
 
@@ -10,7 +10,7 @@ A minimal RunPod ComfyUI container with native MiniMax H3, Manager, a Hugging Fa
 | 8081/http | Original IunoASC model download UI, HF repository and token for LoRAs |
 | 8083/http | Original IunoASC outputs UI, individual downloads, streaming ZIP |
 
-The two panels use HTTP Basic authentication from `PANEL_PASSWORD` in the RunPod template. Set it to a strong value; preferably reference a RunPod secret. ComfyUI on 3000 is exposed via the RunPod proxy and has its own access controls (if any); do not assume the panel password protects port 3000. Never send an HF token in a URL. The panel uses the submitted token in process memory for its download job; it is not written into the image or configuration. The panel does not persist a secret across Pods.
+All three ports use HTTP Basic authentication from `PANEL_PASSWORD` in the RunPod template. ComfyUI binds only to localhost on 3001 and Nginx proxies it through the password-protected port 3000, including WebSockets. Use `iunoasc` as the username for ComfyUI; the panel pages accept any username with the same password. Set a strong password, preferably by referencing a RunPod secret. Never send an HF token in a URL. The panel uses the submitted token in process memory for its download job; it is not written into the image or configuration. The panel does not persist a secret across Pods.
 
 ## Image variants
 
@@ -29,7 +29,7 @@ Five files from `Comfy-Org/MiniMax-H3`: pruned INT8 ConvRot UNet (FP8 in cu128),
 
 1. Create a GitHub repository and add these source files.
 2. Create a Docker Hub repository `comfyui` and set GitHub Actions secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (a Docker Hub access token, not your password).
-3. Run the **Build IunoASC ComfyUI** workflow manually. Replace `<namespace>` below with your Docker Hub namespace. A successful GitHub Action only proves the images built; it does not prove H3 runs on a GPU.
+3. Run the **Build IunoASC ComfyUI** workflow manually. Replace `<namespace>` below with your Docker Hub namespace. A successful GitHub Action only proves the images built; it does not prove H3 runs on a GPU. Rebuild after source changes.
 4. Create two private RunPod templates with `Container Image` `<namespace>/comfyui:torch2.9.1-cu130` and `<namespace>/comfyui:torch2.9.1-cu128`, HTTP ports `3000,8081,8083`, and `PANEL_PASSWORD`. For the `cu128` template also set `IUNO_ATTENTION=torch` and `IUNO_H3_DIFFUSION_FILE=diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors`.
 5. Use **Container Disk**, sized for the image, ~45 GB of H3 files and outputs. No network volume. Check the storage selection before launch so the template does not create a paid Volume Disk by default.
 6. On the Pod, open `8081` to fetch weights; open `3000` and select the official H3 I2V workflow in the template library; open `8083` to download finished outputs. Verify the archive on your PC before stopping the Pod.
