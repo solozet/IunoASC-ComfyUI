@@ -6,7 +6,7 @@ ARG COMFY_REF=v0.37.0
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-venv python3-pip git curl ca-certificates ffmpeg zip \
+    python3 python3-venv python3-pip git curl ca-certificates ffmpeg zip nginx openssl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv /opt/venv
