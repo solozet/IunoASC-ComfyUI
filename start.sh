@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${PANEL_PASSWORD:?Set PANEL_PASSWORD in your RunPod template before starting the Pod}"
+case "${IUNO_TORCH_INDEX:-}" in
+  cu130)
+    export IUNO_ATTENTION="${IUNO_ATTENTION:-ck}"
+    export IUNO_H3_DIFFUSION_FILE="${IUNO_H3_DIFFUSION_FILE:-diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors}"
+    ;;
+  cu128)
+    export IUNO_ATTENTION="${IUNO_ATTENTION:-torch}"
+    export IUNO_H3_DIFFUSION_FILE="${IUNO_H3_DIFFUSION_FILE:-diffusion_models/minimax_h3_fl2va_pruned_fp8_scaled.safetensors}"
+    if [[ "$IUNO_ATTENTION" == ck ]]; then
+      echo '[IunoASC] CUDA 12.8 cannot use the optimized comfy-kitchen CUDA backend. Set IUNO_ATTENTION=torch.' >&2
+      exit 1
+    fi
+    ;;
+  *) echo "[IunoASC] Unsupported image variant: ${IUNO_TORCH_INDEX:-unset}" >&2; exit 1 ;;
+esac
+if [[ "$IUNO_ATTENTION" != ck && "$IUNO_ATTENTION" != torch ]]; then
+  echo '[IunoASC] IUNO_ATTENTION must be ck or torch.' >&2
+  exit 1
+fi
+
+# Check the real GPU and host driver before starting the panels or ComfyUI.
+# A successful Docker build does not test the RunPod host's CUDA driver.
+python /opt/iunoasc/preflight.py
 mkdir -p /data/models /data/inputs /data/outputs
 
 # Only port 3000 is public. The panels and ComfyUI stay on loopback behind one
@@ -29,6 +52,8 @@ http {
     location ^~ /iuno/outputs/ {
       proxy_pass http://127.0.0.1:8083/;
       proxy_set_header Host $host;
+      proxy_buffering off;
+      proxy_read_timeout 3600s;
     }
     location / {
       proxy_pass http://127.0.0.1:3001;

@@ -12,12 +12,12 @@ import uuid
 from pathlib import Path, PurePosixPath
 
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from huggingface_hub import HfApi, hf_hub_download
 from pydantic import BaseModel, Field
 
-from .core import H3_REPO, MODEL_DIR, OUTPUT_DIR, format_size, model_target, output_target, preset_files
+from .core import H3_REPO, MODEL_DIR, OUTPUT_DIR, format_size, model_target, output_target, preset_files, preset_workflow
 
 MODE = os.getenv("PANEL_MODE", "models")
 if MODE not in {"models", "outputs"}:
@@ -33,7 +33,8 @@ def authenticated(credentials: HTTPBasicCredentials | None = Depends(basic)) -> 
     expected = os.getenv("PANEL_PASSWORD", "")
     if not expected:
         raise RuntimeError("Set PANEL_PASSWORD before exposing the panel")
-    if credentials is None or not hmac.compare_digest(credentials.password, expected):
+    if (credentials is None or not hmac.compare_digest(credentials.username, "iunoasc")
+            or not hmac.compare_digest(credentials.password, expected)):
         raise HTTPException(401, "Authentication required", headers={"WWW-Authenticate": 'Basic realm="IunoASC"'})
 
 
@@ -111,6 +112,19 @@ def preset_status():
     if MODE != "models":
         raise HTTPException(404)
     return {"files": [{"filename": f, "ready": model_target(f).is_file()} for f in preset_files()]}
+
+
+@app.get("/api/workflow", dependencies=[Depends(authenticated)])
+def workflow():
+    if MODE != "models":
+        raise HTTPException(404)
+    import json
+
+    return Response(
+        json.dumps(preset_workflow(), ensure_ascii=False),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="iunoasc-h3-i2v.json"'},
+    )
 
 
 @app.post("/api/preset", dependencies=[Depends(authenticated)])
