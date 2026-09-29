@@ -1,10 +1,11 @@
 ARG CUDA_VERSION=13.0.2
 FROM nvidia/cuda:${CUDA_VERSION}-cudnn-runtime-ubuntu24.04
 
+ARG CUDA_VERSION
 ARG TORCH_INDEX=cu130
 ARG COMFY_REF=v0.37.0
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
-ENV IUNO_TORCH_INDEX=${TORCH_INDEX}
+ENV IUNO_TORCH_INDEX=${TORCH_INDEX} IUNO_CUDA_BASE_VERSION=${CUDA_VERSION}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-venv python3-pip git curl ca-certificates ffmpeg zip nginx openssl \
@@ -22,7 +23,7 @@ RUN printf 'torch==2.9.1\ntorchvision==0.24.1\ntorchaudio==2.9.1\n' > /tmp/torch
     pip install -c /tmp/torch-constraints.txt -r requirements.txt -r manager_requirements.txt && \
     pip install -c /tmp/torch-constraints.txt "fastapi==0.115.12" "uvicorn==0.34.2" && \
     pip check && \
-    python -c 'import os, torch, comfy_kitchen; expected={"cu130":"13.0","cu128":"12.8"}[os.environ["IUNO_TORCH_INDEX"]]; assert torch.version.cuda == expected, (torch.version.cuda, expected); print("PyTorch wheel CUDA", torch.version.cuda)'
+    python -c 'import os, torch, torchvision, torchaudio, comfy_kitchen; expected={"cu130":"13.0","cu128":"12.8"}[os.environ["IUNO_TORCH_INDEX"]]; assert torch.version.cuda == expected, (torch.version.cuda, expected); print("Base CUDA", os.environ["IUNO_CUDA_BASE_VERSION"], "PyTorch wheel CUDA", torch.version.cuda); print("torch", torch.__version__, "vision", torchvision.__version__, "audio", torchaudio.__version__)'
 
 # ComfyUI's requirements pin comfy-kitchen 0.2.35. On CUDA 12.8 we
 # launch with standard attention until a GPU trial confirms the fallback.

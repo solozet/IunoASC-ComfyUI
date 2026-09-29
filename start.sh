@@ -23,7 +23,7 @@ fi
 
 # Check the real GPU and host driver before starting the panels or ComfyUI.
 # A successful Docker build does not test the RunPod host's CUDA driver.
-python /opt/iunoasc/preflight.py
+timeout --signal=TERM --kill-after=5s 90s python /opt/iunoasc/preflight.py
 mkdir -p /data/models /data/inputs /data/outputs
 
 # Only port 3000 is public. The panels and ComfyUI stay on loopback behind one
