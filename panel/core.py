@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import json
 from pathlib import Path, PurePosixPath
 
 DATA_DIR = Path(os.getenv("IUNO_DATA_DIR", "/data"))
 MODEL_DIR = DATA_DIR / "models"
 OUTPUT_DIR = DATA_DIR / "outputs"
+WORKFLOW_FILE = Path(__file__).resolve().parent.parent / "workflows" / "minimax_h3_i2v_official.json"
 
 H3_REPO = "Comfy-Org/MiniMax-H3"
 H3_FILES = (
@@ -27,6 +29,21 @@ def preset_files() -> tuple[str, ...]:
     }:
         raise ValueError("Unsupported H3 diffusion model")
     return (diffusion, *H3_FILES[1:])
+
+
+def preset_workflow() -> dict:
+    """Adapt Comfy Org's native I2V workflow to the files this image downloads."""
+    source = WORKFLOW_FILE.read_text(encoding="utf-8")
+    replacements = {
+        H3_FILES[0].split("/")[-1]: preset_files()[0].split("/")[-1],
+        "minimax_h3_video_vae_int8_convrot.safetensors": H3_FILES[2].split("/")[-1],
+    }
+    for old, new in replacements.items():
+        if old not in source:
+            raise ValueError(f"Official workflow no longer references {old}")
+        source = source.replace(old, new)
+    source = source.replace("2.62 GB", "5.21 GB")  # FP16 video VAE
+    return json.loads(source)
 
 
 def model_target(filename: str) -> Path:
