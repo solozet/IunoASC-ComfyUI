@@ -1,3 +1,6 @@
+// RunPod assigns a separate HTTPS origin to each exposed HTTP port.
+function serviceUrl(port){const url=new URL(location.href);if(url.hostname.endsWith('.proxy.runpod.net')){url.hostname=url.hostname.replace(/-\d+\.proxy\.runpod\.net$/,`-${port}.proxy.runpod.net`)}else{url.port=String(port)}url.pathname='/';url.search='';url.hash='';return url.href}
+for(const [id,port] of [['comfy-link',3000],['models-link',8081],['outputs-link',8083]]){const link=document.getElementById(id);if(link)link.href=serviceUrl(port)}
 const mode=document.body.dataset.mode;
 const byId=id=>document.getElementById(id);
 async function api(url,options={}){const res=await fetch(url,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});let obj={};try{obj=await res.json()}catch{}if(!res.ok)throw Error(typeof obj.detail==='string'?obj.detail:`Ошибка HTTP ${res.status}`);return obj}

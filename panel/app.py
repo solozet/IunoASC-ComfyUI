@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hmac
 import os
 import re
 import shutil
@@ -11,9 +10,8 @@ import threading
 import uuid
 from pathlib import Path, PurePosixPath
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from huggingface_hub import HfApi, hf_hub_download
 from pydantic import BaseModel, Field
 
@@ -24,18 +22,9 @@ if MODE not in {"models", "outputs"}:
     raise RuntimeError("PANEL_MODE must be models or outputs")
 
 app = FastAPI(title=f"IunoASC {MODE}", docs_url=None, redoc_url=None, openapi_url=None)
-basic = HTTPBasic(auto_error=False)
 jobs: dict[str, dict] = {}
 jobs_lock = threading.Lock()
 
-
-def authenticated(credentials: HTTPBasicCredentials | None = Depends(basic)) -> None:
-    expected = os.getenv("PANEL_PASSWORD", "")
-    if not expected:
-        raise RuntimeError("Set PANEL_PASSWORD before exposing the panel")
-    if (credentials is None or not hmac.compare_digest(credentials.username, "iunoasc")
-            or not hmac.compare_digest(credentials.password, expected)):
-        raise HTTPException(401, "Authentication required", headers={"WWW-Authenticate": 'Basic realm="IunoASC"'})
 
 
 class TokenRequest(BaseModel):
@@ -91,30 +80,30 @@ def _new_job(files: list[tuple[str, str, str]], token: str) -> str:
     return job_id
 
 
-@app.get("/", response_class=HTMLResponse, dependencies=[Depends(authenticated)])
+@app.get("/", response_class=HTMLResponse)
 def index():
     name = "models.html" if MODE == "models" else "outputs.html"
     return (Path(__file__).parent / "static" / name).read_text(encoding="utf-8")
 
 
-@app.get("/style.css", dependencies=[Depends(authenticated)])
+@app.get("/style.css")
 def css():
     return FileResponse(Path(__file__).parent / "static" / "style.css", media_type="text/css")
 
 
-@app.get("/app.js", dependencies=[Depends(authenticated)])
+@app.get("/app.js")
 def javascript():
     return FileResponse(Path(__file__).parent / "static" / "app.js", media_type="text/javascript")
 
 
-@app.get("/api/preset", dependencies=[Depends(authenticated)])
+@app.get("/api/preset")
 def preset_status():
     if MODE != "models":
         raise HTTPException(404)
     return {"files": [{"filename": f, "ready": model_target(f).is_file()} for f in preset_files()]}
 
 
-@app.get("/api/workflow", dependencies=[Depends(authenticated)])
+@app.get("/api/workflow")
 def workflow():
     if MODE != "models":
         raise HTTPException(404)
@@ -127,14 +116,14 @@ def workflow():
     )
 
 
-@app.post("/api/preset", dependencies=[Depends(authenticated)])
+@app.post("/api/preset")
 def download_preset(request: TokenRequest):
     if MODE != "models":
         raise HTTPException(404)
     return {"id": _new_job([(H3_REPO, f, f) for f in preset_files()], request.token)}
 
 
-@app.post("/api/loras", dependencies=[Depends(authenticated)])
+@app.post("/api/loras")
 def lora_files(request: LoraListRequest):
     if MODE != "models":
         raise HTTPException(404)
@@ -147,7 +136,7 @@ def lora_files(request: LoraListRequest):
     return {"files": [f for f in files if f.lower().endswith(".safetensors")]}
 
 
-@app.post("/api/loras/download", dependencies=[Depends(authenticated)])
+@app.post("/api/loras/download")
 def download_lora(request: LoraDownloadRequest):
     if MODE != "models":
         raise HTTPException(404)
@@ -159,7 +148,7 @@ def download_lora(request: LoraDownloadRequest):
     return {"id": _new_job([(repo, filename, f"loras/{path.name}")], request.token)}
 
 
-@app.get("/api/jobs/{job_id}", dependencies=[Depends(authenticated)])
+@app.get("/api/jobs/{job_id}")
 def job_status(job_id: str):
     with jobs_lock:
         job = jobs.get(job_id)
@@ -168,7 +157,7 @@ def job_status(job_id: str):
         return dict(job)
 
 
-@app.get("/api/outputs", dependencies=[Depends(authenticated)])
+@app.get("/api/outputs")
 def outputs(path: str = Query(default="")):
     if MODE != "outputs":
         raise HTTPException(404)
@@ -184,7 +173,7 @@ def outputs(path: str = Query(default="")):
     return {"path": path, "files": result}
 
 
-@app.get("/api/outputs/file", dependencies=[Depends(authenticated)])
+@app.get("/api/outputs/file")
 def output_file(path: str):
     if MODE != "outputs":
         raise HTTPException(404)
@@ -194,7 +183,7 @@ def output_file(path: str):
     return FileResponse(file, filename=file.name, media_type="application/octet-stream")
 
 
-@app.get("/api/outputs/archive", dependencies=[Depends(authenticated)])
+@app.get("/api/outputs/archive")
 def output_archive():
     if MODE != "outputs":
         raise HTTPException(404)

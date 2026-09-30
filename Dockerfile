@@ -41,5 +41,5 @@ RUN mkdir -p /data/models/diffusion_models /data/models/text_encoders \
     chmod +x /opt/iunoasc/start.sh
 
 ENV PYTHONPATH=/opt/iunoasc IUNO_DATA_DIR=/data HF_HOME=/data/.hf-cache
-EXPOSE 3000
+EXPOSE 3000 8081 8083
 CMD ["/opt/iunoasc/start.sh"]

@@ -4,15 +4,15 @@ A minimal RunPod ComfyUI container with native MiniMax H3, Manager, a Hugging Fa
 
 ## Interfaces
 
-| URL path on port 3000 | Purpose |
+| HTTP port | Purpose |
 | --- | --- |
-| `/` | ComfyUI with native H3 nodes and Manager |
-| `/iuno/models/` | IunoASC model download UI, HF repository and token for LoRAs |
-| `/iuno/outputs/` | IunoASC outputs UI, individual downloads, streaming ZIP |
+| `3000` | ComfyUI with native H3 nodes and Manager |
+| `8081` | Preset/model download UI, HF repository and token for LoRAs |
+| `8083` | Outputs UI, individual downloads, streaming ZIP |
 
 The models page also offers an adapted copy of Comfy Org's official native H3 I2V workflow. Its diffusion model and FP16 video VAE names match the active image preset. Upload your own starting image in the workflow. The upstream workflow is MIT licensed; its license is in `workflows/LICENSE`.
 
-Expose **only HTTP port 3000** in RunPod. Nginx serves all three pages under one origin and one HTTP Basic authentication prompt, including ComfyUI WebSockets. ComfyUI and both panels listen only on localhost inside the container. The username is `iunoasc`; set `PANEL_PASSWORD` to a strong value in the RunPod template, preferably as a RunPod secret. RunPod login alone does not protect an exposed Pod URL. Never send an HF token in a URL. The panel uses the submitted token in process memory for its download job; it is not written into the image or configuration. The panel does not persist a secret across Pods.
+Expose **HTTP ports `3000,8081,8083`** in RunPod. Each service has a separate HTTPS link in Connect: `https://POD_ID-PORT.proxy.runpod.net/`. The panels link to the matching ports automatically. No login or password is required; `PANEL_PASSWORD` is unused and can be removed from the template. HF tokens are submitted only for download jobs and are not stored in the image or configuration.
 
 ## Image variants
 
@@ -52,13 +52,13 @@ Five files from `Comfy-Org/MiniMax-H3`: pruned INT8 ConvRot UNet (FP8 in cu128),
 1. Create a GitHub repository and add these source files.
 2. Create a Docker Hub repository `comfyui` and set GitHub Actions secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (a Docker Hub access token, not your password).
 3. Merging a PR to `main` builds and pushes all four images automatically; **Build IunoASC ComfyUI** can also be triggered manually. A successful GitHub Action only proves the images built; it does not prove H3 runs on a GPU.
-4. Create a private RunPod template for each variant you want to test, with `Container Image` `solozeet/comfyui:<tag from the table>`, **HTTP port `3000` only**, and `PANEL_PASSWORD`. Remove old `IUNO_ATTENTION` and `IUNO_H3_DIFFUSION_FILE` overrides so the matching defaults built into each image take effect.
+4. Create a private RunPod template for each variant you want to test, with `Container Image` `solozeet/comfyui:<tag from the table>`, **HTTP ports `3000,8081,8083`**, and an empty Start Command. Remove old `IUNO_ATTENTION` and `IUNO_H3_DIFFUSION_FILE` overrides so the matching defaults built into each image take effect.
 5. Use **Container Disk**, sized for the image, ~45 GB of H3 files and outputs. No network volume. Check the storage selection before launch so the template does not create a paid Volume Disk by default.
-6. Before downloading weights, check container logs for `[IunoASC] GPU preflight passed` and the ComfyUI ready message. On the Pod, open the port `3000` link and enter `iunoasc` / your `PANEL_PASSWORD` once. Add `/iuno/models/` to fetch weights and download the matching workflow; drag the workflow JSON into ComfyUI at `/`. Add `/iuno/outputs/` to download finished outputs. Verify the archive on your PC before stopping the Pod.
+6. Before downloading weights, check container logs for `[IunoASC] GPU preflight passed` and the ComfyUI ready message. On the Pod, open port `3000` for ComfyUI, `8081` to fetch weights and download the matching workflow, and `8083` to download outputs. Drag the workflow JSON into ComfyUI. No password is requested. Verify the archive on your PC before stopping the Pod.
 
 ## Limits to validate on GPU
 
-- These builds have not been run with a 5090, 4090, L40 or L40S; H3 memory, Comfy Kitchen, audio/video decode, and the FP8 cu128 workflow need real Pod tests.
+- CUDA, Comfy Kitchen smoke tests and ComfyUI 0.38.0 startup passed on an RTX 4090 with CUDA 13.0. Full H3 generation, audio/video decode and the FP8 cu128 workflow still need real Pod tests.
 - The page shows progress by file, not per-byte transfer rate. Hugging Face may cache metadata beside files in `/data/models/.cache`.
 - If 8081 is restarted mid-download, the in-memory job status is lost. HF library metadata can avoid downloading finished files again when rerun.
 - Installing arbitrary custom nodes through Manager may change packages in the running Pod; a fresh Pod restores the base image.
