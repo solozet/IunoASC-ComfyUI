@@ -11,7 +11,9 @@ import urllib.error
 import urllib.request
 
 
-@unittest.skipUnless(shutil.which("nginx"), "nginx integration test runs in the image build")
+@unittest.skipUnless(shutil.which("nginx") and
+                     Path(os.environ.get("IUNO_START_SCRIPT", "/opt/iunoasc/start.sh")).is_file(),
+                     "nginx integration test runs in the image build")
 class GatewayAuthTest(unittest.TestCase):
     def test_worker_can_read_password_file(self):
         start = Path(os.environ.get("IUNO_START_SCRIPT", "/opt/iunoasc/start.sh")).read_text()
