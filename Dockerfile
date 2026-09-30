@@ -32,6 +32,8 @@ COPY panel /opt/iunoasc/panel
 COPY workflows /opt/iunoasc/workflows
 COPY start.sh /opt/iunoasc/start.sh
 COPY preflight.py /opt/iunoasc/preflight.py
+COPY tests/test_gateway.py /tmp/test_gateway.py
+RUN python /tmp/test_gateway.py && rm /tmp/test_gateway.py
 RUN mkdir -p /data/models/diffusion_models /data/models/text_encoders \
              /data/models/vae /data/models/loras /data/models/embeddings \
              /data/inputs /data/outputs && \

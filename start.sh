@@ -29,8 +29,10 @@ mkdir -p /data/models /data/inputs /data/outputs
 # Only port 3000 is public. The panels and ComfyUI stay on loopback behind one
 # browser origin and one authentication prompt.
 printf 'iunoasc:%s\n' "$(printf '%s\n' "$PANEL_PASSWORD" | openssl passwd -apr1 -stdin)" > /tmp/iunoasc.htpasswd
-chmod 600 /tmp/iunoasc.htpasswd
+chown root:www-data /tmp/iunoasc.htpasswd
+chmod 640 /tmp/iunoasc.htpasswd
 cat > /tmp/iunoasc-nginx.conf <<'NGINX'
+user www-data;
 events { worker_connections 1024; }
 http {
   map $http_upgrade $connection_upgrade {
