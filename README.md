@@ -16,26 +16,32 @@ Expose **only HTTP port 3000** in RunPod. Nginx serves all three pages under one
 
 ## Image variants
 
-| Image tag | NVIDIA base CUDA | PyTorch wheel | Attention / model | Host driver policy |
-| --- | --- | --- | --- | --- |
-| `torch2.9.1-cu130-r3` | 13.0.2 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 580.95.05 |
-| `torch2.9.1-cu128-r3` | 12.8.1 | 2.9.1+cu128 (CUDA 12.8) | Standard / FP8 scaled | >= 570.124.06 |
-| `torch2.9.1-cu130-base13.1.1-r3` | 13.1.1 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 590.48.01 |
-| `torch2.9.1-cu130-base13.2.0-r3` | 13.2.0 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 595.45.04 |
+| Short tag (alias) | Versioned tag | NVIDIA base CUDA | PyTorch wheel | Attention / model | Host driver policy |
+| --- | --- | --- | --- | --- | --- |
+| `cu130` | `comfy0.38.0-cu130` | 13.0.2 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 580.95.05 |
+| `cu128` | `comfy0.38.0-cu128` | 12.8.1 | 2.9.1+cu128 (CUDA 12.8) | Standard / FP8 scaled | >= 570.124.06 |
+| `cu131` | `comfy0.38.0-cu131` | 13.1.1 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 590.48.01 |
+| `cu132` | `comfy0.38.0-cu132` | 13.2.0 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 595.45.04 |
 
-All tags are under `solozeet/comfyui`. Existing `r2` tags are not overwritten by this release. All four variants still need an end-to-end H3 test on a real GPU.
+All tags are under `solozeet/comfyui`. For quick switching, use `solozeet/comfyui:cu130` and change only the suffix to `cu128`, `cu131` or `cu132`. The short aliases follow future releases; `comfy0.38.0-cu130` (and its sibling tags) selects this ComfyUI release. Existing `r2` and `r3` tags are not overwritten. All four variants still need an end-to-end H3 test on a real GPU.
 
-**The last two rows are experimental NVIDIA base-image variants, not native PyTorch cu131/cu132 builds.** [Official PyTorch 2.9.1 packages](https://pytorch.org/get-started/previous-versions/#v291) are available for cu126/cu128/cu130, not cu131/cu132. PyTorch's CUDA version in both new images remains **13.0**. Its wheel installs its own CUDA dependencies, so a newer base does not upgrade every library used for computation. The tests compare base environments while preserving the existing torch/torchvision/torchaudio stack. There are newer PyTorch cu132 releases, but migrating the pinned ComfyUI and audio dependencies is a separate change.
+**In our short and versioned tags, cu131/cu132 identify the NVIDIA base, not the PyTorch wheel. The last two rows remain experimental base-image variants, not native PyTorch cu131/cu132 builds.** [Official PyTorch 2.9.1 packages](https://pytorch.org/get-started/previous-versions/#v291) are available for cu126/cu128/cu130, not cu131/cu132. PyTorch's CUDA version in both new images remains **13.0**. Its wheel installs its own CUDA dependencies, so a newer base does not upgrade every library used for computation. The tests compare base environments while preserving the existing torch/torchvision/torchaudio stack. Newer PyTorch cu132 releases exist; upgrading PyTorch is a separate change. ComfyUI 0.38.0 removed its core torchaudio dependency; this image retains torchaudio 2.9.1 alongside the matching PyTorch for existing custom-node compatibility.
 
 The driver floors above are this project's conservative policy, using the paired Linux drivers from NVIDIA's release notes for [12.8.1](https://docs.nvidia.com/cuda/archive/12.8.1/cuda-toolkit-release-notes/index.html), [13.0.2](https://docs.nvidia.com/cuda/archive/13.0.2/cuda-toolkit-release-notes/index.html), [13.1.1](https://docs.nvidia.com/cuda/archive/13.1.1/cuda-toolkit-release-notes/index.html), and [13.2.0](https://docs.nvidia.com/cuda/archive/13.2.0/cuda-toolkit-release-notes/index.html). They are **not universal NVIDIA minimums**: CUDA 13.x minor-version compatibility permits some applications on R580, with restrictions. These images deliberately avoid depending on that for newer bases. A newer base does not repair error 804 or install a host driver.
 
 In RunPod **Additional filters → CUDA Versions**, select the base's minor version and newer versions (13.1+ for base13.1.1, 13.2+ for base13.2.0), then confirm the exact driver in startup logs. This does not test or repair the host's container runtime. The NVIDIA entrypoint may reject an incompatible host before our script runs; retain RunPod system logs in that case. Do not disable NVIDIA's compatibility checks.
 
-ComfyUI remains pinned to `v0.37.0`. [Comfy Org recommends FP8](https://huggingface.co/Comfy-Org/MiniMax-H3) only when INT8 ConvRot cannot run. Each image chooses its attention backend and diffusion model automatically. Do not set `IUNO_TORCH_INDEX` or `IUNO_CUDA_BASE_VERSION` in RunPod; they describe the actual built image.
+ComfyUI is pinned to `v0.38.0`, with Comfy Kitchen `0.2.36`. [Comfy Org recommends FP8](https://huggingface.co/Comfy-Org/MiniMax-H3) only when INT8 ConvRot cannot run. Each image chooses its attention backend and diffusion model automatically. Do not set `IUNO_TORCH_INDEX` or `IUNO_CUDA_BASE_VERSION` in RunPod; they describe the actual built image.
 
 At startup `preflight.py` prints the base CUDA, PyTorch CUDA, GPU, driver, SM architecture and VRAM. It verifies the wheel, initializes CUDA, performs tiny FP16 matrix multiplication and standard attention, and (for CK images) forces a Comfy Kitchen CUDA quantization operation with a result check. It logs actual loaded CUDA library paths, including `libcuda`, to help diagnose unwanted compatibility libraries. The startup check has a 90-second timeout. These smoke tests do not validate all H3 kernels, model memory requirements, or video/audio generation.
 
 **Preflight failure exits the container; it does not stop the paid RunPod allocation.** Save the logs and stop/terminate a failing Pod yourself instead of waiting through restart loops. The script does not install host drivers, automatically change images, or download models. CI tests mock the GPU and verify failure handling only; a Docker build runs CPU import checks and cannot prove GPU compatibility.
+
+## ComfyUI 0.38.0 and Manager
+
+This release is useful for H3: it fixes VAE tile-crossing seams ([#16436](https://github.com/Comfy-Org/ComfyUI/pull/16436)) and a fused `rms_rope` crash when `qk_norm_scale` is offloaded to CPU ([#16485](https://github.com/Comfy-Org/ComfyUI/pull/16485)). It also adds MiniMax-H3 Fun-Controlnet-Union 2.0 support; the default I2V preset still downloads only its original five files. See the [release notes](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.38.0). These application changes do not repair host CUDA error 804.
+
+**ComfyUI Manager is installed and enabled.** The Dockerfile installs upstream `manager_requirements.txt` (`comfyui_manager==4.2.2` for v0.38.0), and `start.sh` passes `--enable-manager`. Build logs print the installed Manager version. Access it from ComfyUI after the server starts; it does not use a separate exposed port. No extra Manager installation or startup argument is needed.
 
 ## Preset
 

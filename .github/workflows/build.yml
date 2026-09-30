@@ -23,18 +23,22 @@ jobs:
         include:
           - cuda: '13.0.2'
             torch_index: cu130
-            tag: torch2.9.1-cu130-r3
+            tag: comfy0.38.0-cu130
+            alias: cu130
           - cuda: '12.8.1'
             torch_index: cu128
-            tag: torch2.9.1-cu128-r3
+            tag: comfy0.38.0-cu128
+            alias: cu128
           # These change the NVIDIA base, NOT the PyTorch wheel's CUDA version.
           # PyTorch 2.9.1 has no official cu131/cu132 wheels.
           - cuda: '13.1.1'
             torch_index: cu130
-            tag: torch2.9.1-cu130-base13.1.1-r3
+            tag: comfy0.38.0-cu131
+            alias: cu131
           - cuda: '13.2.0'
             torch_index: cu130
-            tag: torch2.9.1-cu130-base13.2.0-r3
+            tag: comfy0.38.0-cu132
+            alias: cu132
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -48,7 +52,9 @@ jobs:
           context: .
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/comfyui:${{ matrix.tag }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/comfyui:${{ matrix.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/comfyui:${{ matrix.alias }}
           build-args: |
             CUDA_VERSION=${{ matrix.cuda }}
             TORCH_INDEX=${{ matrix.torch_index }}
