@@ -121,9 +121,6 @@ Classic Manager uses `--enable-manager --enable-manager-legacy-ui`; no separate 
 | Input media | `/data/inputs` |
 | Generated outputs | `/data/outputs` |
 | HF tokens | Optional fields in the downloader; not saved in image or configuration |
-| `PANEL_PASSWORD` | Unused; remove from old templates |
-| `IUNO_TORCH_INDEX`, `IUNO_CUDA_BASE_VERSION` | Set by the image; do not override in RunPod |
-| Old attention / diffusion overrides | Remove `IUNO_ATTENTION` and `IUNO_H3_DIFFUSION_FILE` to use image defaults |
 
 This setup uses Container Disk rather than persistent storage. Save outputs and any custom changes before stopping or deleting the Pod. Job progress lives in memory: restarting the models panel loses the progress record, but repeating installation reuses completed weights of the expected size.
 
