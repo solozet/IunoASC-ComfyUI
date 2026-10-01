@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import threading
@@ -18,6 +17,7 @@ from pydantic import BaseModel, Field
 from .core import H3_REPO, MODEL_DIR, OUTPUT_DIR, format_size, model_target, output_target
 from .presets import manifest, public_manifest, workflow_for
 from .install import install_preset
+from .hf_source import parse_hf_source, weight_filename, WEIGHT_DIRECTORIES, WEIGHT_SUFFIXES
 
 MODE = os.getenv("PANEL_MODE", "models")
 if MODE not in {"models", "outputs"}:
@@ -39,21 +39,26 @@ class PresetRequest(TokenRequest):
 
 
 class LoraListRequest(TokenRequest):
-    repo: str = Field(min_length=3, max_length=200)
+    repo: str = Field(min_length=3, max_length=1000)
 
 
 class LoraDownloadRequest(LoraListRequest):
     filename: str = Field(min_length=1, max_length=500)
 
 
-def _repo_name(repo: str) -> str:
-    repo = repo.strip().removeprefix("https://huggingface.co/").strip("/")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo) or ".." in repo:
-        raise HTTPException(400, "Укажи HF-репозиторий в формате автор/модель")
-    return repo
+class WeightDownloadRequest(LoraListRequest):
+    filename: str = Field(default='', max_length=500)
+    directory: str = 'loras'
 
 
-def _new_job(files: list[tuple[str, str, str]], token: str, sizes: dict[str, int] | None = None, preset_id: str | None = None) -> str:
+def _source(value: str):
+    try:
+        return parse_hf_source(value)
+    except ValueError as error:
+        raise HTTPException(400, {'code': str(error)}) from None
+
+
+def _new_job(files: list[tuple], token: str, sizes: dict[str, int] | None = None, preset_id: str | None = None) -> str:
     job_id = uuid.uuid4().hex
     with jobs_lock:
         jobs[job_id] = {"state": "running", "done": 0, "total": len(files) + bool(preset_id), "current": "", "error": "", "restart_required": False}
@@ -61,20 +66,22 @@ def _new_job(files: list[tuple[str, str, str]], token: str, sizes: dict[str, int
     def run() -> None:
         installing = False
         try:
-            for repo, source, destination in files:
+            for file in files:
+                repo, source, destination = file[:3]
+                revision = file[3] if len(file) > 3 else 'main'
                 with jobs_lock:
                     jobs[job_id]["current"] = source
                 target = model_target(destination)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 expected = (sizes or {}).get(destination)
                 repair = target.is_file() and expected is not None and target.stat().st_size != expected
-                if repo == H3_REPO:
+                if repo == H3_REPO and source == destination and revision == 'main':
                     # local_dir preserves the official model subdirectories.
                     hf_hub_download(repo_id=repo, filename=source, local_dir=MODEL_DIR, token=token or None, force_download=repair)
                 elif repair or not target.is_file() or target.stat().st_size == 0:
                     # Keep a single copy; moving inside the same filesystem is cheap.
                     staging = MODEL_DIR / ".hf-downloads" / repo.replace("/", "_")
-                    downloaded = Path(hf_hub_download(repo_id=repo, filename=source, local_dir=staging, token=token or None, force_download=repair))
+                    downloaded = Path(hf_hub_download(repo_id=repo, filename=source, revision=revision, local_dir=staging, token=token or None, force_download=repair))
                     shutil.move(downloaded, target)
                 if expected is not None and target.stat().st_size != expected:
                     raise ValueError("Downloaded file has unexpected size")
@@ -95,8 +102,7 @@ def _new_job(files: list[tuple[str, str, str]], token: str, sizes: dict[str, int
             # Do not reflect library exception strings: they may include private URLs.
             with jobs_lock:
                 jobs[job_id]["state"] = "failed"
-                jobs[job_id]["error"] = ("Веса скачаны, но не удалось установить ноды или workflow. Проверь доступ к GitHub и свободное место; можно повторить установку."
-                                         if installing else "Не удалось скачать файл. Проверь HF-токен, доступ к модели и свободное место.")
+                jobs[job_id]['error_code'] = 'install_failed' if installing else 'download_failed'
 
     threading.Thread(target=run, daemon=True).start()
     return job_id
@@ -118,11 +124,16 @@ def javascript():
     return FileResponse(Path(__file__).parent / "static" / "app.js", media_type="text/javascript")
 
 
+@app.get('/i18n.json')
+def translations():
+    return FileResponse(Path(__file__).parent / 'static' / 'i18n.json', media_type='application/json')
+
+
 def checked_preset(preset: str):
     try:
         return manifest(preset)
     except ValueError:
-        raise HTTPException(404, "Пресет не найден")
+        raise HTTPException(404, {'code': 'preset_not_found'})
 
 
 @app.get("/api/presets")
@@ -164,27 +175,48 @@ def download_preset(request: PresetRequest):
 
 @app.post("/api/loras")
 def lora_files(request: LoraListRequest):
+    result = weight_files(request)
+    result['files'] = [f for f in result['files'] if f.lower().endswith('.safetensors')]
+    return result
+
+
+@app.post('/api/weights')
+def weight_files(request: LoraListRequest):
     if MODE != "models":
         raise HTTPException(404)
     try:
-        files = HfApi(token=request.token or None).list_repo_files(repo_id=_repo_name(request.repo))
+        source = _source(request.repo)
+        files = HfApi(token=request.token or None).list_repo_files(repo_id=source.repo, revision=source.revision)
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(400, "Не удалось открыть HF-репозиторий. Проверь адрес и токен.")
-    return {"files": [f for f in files if f.lower().endswith(".safetensors")]}
+        raise HTTPException(400, {'code': 'hf_open_failed'})
+    candidates = [f for f in files if PurePosixPath(f).suffix.lower() in WEIGHT_SUFFIXES]
+    if source.filename and source.filename not in candidates:
+        raise HTTPException(400, {'code': 'invalid_weight_file'})
+    return {'files': candidates, 'selected': source.filename, 'repo': source.repo, 'revision': source.revision}
 
 
 @app.post("/api/loras/download")
 def download_lora(request: LoraDownloadRequest):
+    if not request.filename.lower().endswith('.safetensors'):
+        raise HTTPException(400, {'code': 'invalid_weight_file'})
+    return download_weight(WeightDownloadRequest(**request.model_dump(), directory='loras'))
+
+
+@app.post('/api/weights/download')
+def download_weight(request: WeightDownloadRequest):
     if MODE != "models":
         raise HTTPException(404)
-    repo = _repo_name(request.repo)
-    filename = request.filename
-    path = PurePosixPath(filename)
-    if path.is_absolute() or ".." in path.parts or not filename.lower().endswith(".safetensors"):
-        raise HTTPException(400, "Выбери файл .safetensors из HF-репозитория")
-    return {"id": _new_job([(repo, filename, f"loras/{path.name}")], request.token)}
+    source = _source(request.repo)
+    if request.directory not in WEIGHT_DIRECTORIES:
+        raise HTTPException(400, {'code': 'invalid_weight_directory'})
+    try:
+        filename = weight_filename(request.filename or source.filename or '')
+    except ValueError as error:
+        raise HTTPException(400, {'code': str(error)}) from None
+    destination = f'{request.directory}/{PurePosixPath(filename).name}'
+    return {'id': _new_job([(source.repo, filename, destination, source.revision)], request.token)}
 
 
 @app.get("/api/jobs/{job_id}")
@@ -208,7 +240,7 @@ def outputs(path: str = Query(default="")):
         if item.is_symlink():
             continue
         rel = item.relative_to(OUTPUT_DIR).as_posix()
-        result.append({"name": item.name, "path": rel, "directory": item.is_dir(), "size": "" if item.is_dir() else format_size(item.stat().st_size)})
+        result.append({"name": item.name, "path": rel, "directory": item.is_dir(), "size": "" if item.is_dir() else format_size(item.stat().st_size), 'size_bytes': None if item.is_dir() else item.stat().st_size})
     return {"path": path, "files": result}
 
 
@@ -228,7 +260,7 @@ def output_archive():
         raise HTTPException(404)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     if not any(OUTPUT_DIR.iterdir()):
-        raise HTTPException(404, "Папка outputs пока пуста")
+        raise HTTPException(404, {'code': 'folder_empty'})
 
     # zip writes to stdout; the server streams it without creating a second
     # copy of every video on the Pod's paid container disk.

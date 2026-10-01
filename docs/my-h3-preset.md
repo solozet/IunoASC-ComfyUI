@@ -1,30 +1,36 @@
-# MY.json preset — prepared, no image rebuild
+# LightSpeed H3 preset
 
-The user supplied MY.json on 2026-10-01 after removing unused branches. This supersedes the provisional UltraFast v8 adaptation. The shipped workflow is an exact copy of the supplied JSON; no model, prompt, resolution, scheduler, bypass, link or Spectrum setting is changed.
+The preset is based on the user-edited MY workflow and packaged as a native ComfyUI subgraph. Source: [MiniMax H3 Ultra Fastest True 4 Steps + HD Sound | 6GB VRAM 16GB RAM [V8 Update] Lightning Speed](https://civitai.com/models/2835250?modelVersionId=3305336) by [RedditUser9811](https://civitai.com/user/RedditUser9811).
 
-## Selected weights
+## Required weights
 
-Actual loader widgets are authoritative. Embedded UNET metadata still names REF2VA and video VAE metadata still names FP16; neither is selected. The preset downloads these four files from Comfy-Org/MiniMax-H3:
+| File | Directory | Bytes |
+| --- | --- | ---: |
+| minimax_h3_fl2va_pruned_int8_convrot.safetensors | diffusion_models | 20,970,379,616 |
+| qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors | text_encoders | 15,687,142,551 |
+| minimax_h3_video_vae_int8_convrot.safetensors | vae | 2,811,065,184 |
+| minimax_h3_audio_vae_fp32.safetensors | vae | 605,254,808 |
+| minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors | loras | 620,285,592 |
 
-| Directory / filename | Bytes | Decimal GB |
-| --- | ---: | ---: |
-| diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors | 20,970,379,616 | 20.9704 |
-| text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors | 15,687,142,551 | 15.6871 |
-| vae/minimax_h3_video_vae_int8_convrot.safetensors | 2,811,065,184 | 2.8111 |
-| vae/minimax_h3_audio_vae_fp32.safetensors | 605,254,808 | 0.6053 |
+Total: **40,694,127,751 bytes = 40.69 GB**. The first four files are from Comfy-Org/MiniMax-H3. Turbo v4 is from drbaph/MiniMax-H3-Turbo-Lora-ComfyUI. With the cu130 official preset already installed, 3.43 GB is additional; both presets use 47.86 GB. cu128's official preset has a different diffusion model.
 
-Total: **40,073,842,159 bytes = 40.07 GB = 37.32 GiB**. With the default cu130 native preset already downloaded, only INT8 video VAE is additional: **2.81 GB**. Both presets together occupy **47,237,843,655 bytes = 47.24 GB** in weights. cu128 native preset uses a different FP8 diffusion model and does not share that diffusion file.
+## Workflow and installation
 
-The graph contains no LoRA loader, TAE preview or RTX upscale. All six LoadImage nodes are bypassed. SpectrumApplyMiniMaxH3 is active; its record identifies xmarre/ComfyUI-Spectrum-MiniMax-H3 at dc6e1b335e1cdcd078a649add6464dab9469a587. No other custom node package is present, including within the subgraph. The install button downloads missing weights, installs the pinned Spectrum snapshot into /opt/ComfyUI/custom_nodes and saves lightspeed-h3.json to /opt/ComfyUI/user/default/workflows. It also triggers the workflow download in the browser. An existing Spectrum installation is preserved. ComfyUI must be restarted through Manager to load newly installed nodes; the installer does not interrupt a running generation or restart the Pod. Its recorded source snapshot is approximately 214 KB excluding git history, and its requirements list is empty. This is not a measured installed footprint.
+| Component | Behavior |
+| --- | --- |
+| Turbo LoRA | Enabled, strength 1.0; switch bypasses the loader when off |
+| Additional LoRA | Disabled; filename selector and independent strength. The initial filename matches the installed Turbo file and creates no additional download. |
+| Video | HDR, 10-bit, 24 FPS; FPS also controls frame count |
+| Sampling | 5 seconds, 5 steps; Spectrum enabled |
+| Resolution | Main-canvas selector, 9:16, 2 MP, multiple 32, live dimensions |
+| Noise | Hidden inside the subgraph, randomize |
+| Reference images | Six bypassed loaders; supply your own images and enable the needed nodes |
+| Resolution reference note | Main canvas |
+| Workflow location | /opt/ComfyUI/user/default/workflows/lightspeed-h3.json |
+| Custom package | xmarre/ComfyUI-Spectrum-MiniMax-H3 at dc6e1b335e1cdcd078a649add6464dab9469a587 |
 
-The user reports successful local use with 16 GB RAM, 12 GB VRAM and a 90 GB pagefile. That is evidence for their local configuration, not a verified minimum or a cloud speed measurement. Disk weight size is not simultaneous RAM/VRAM usage. No Linux/GPU generation was run for this change.
+Spectrum is the only custom-node package and has no extra pip dependencies at the pinned revision. An existing Spectrum installation is preserved. Restart ComfyUI through Manager after installing nodes. The installer saves the workflow on the Pod and also offers a browser download.
 
-The second card is titled LightSpeed H3 and hides its weight list behind a closed details section. Existing native preset and classic Manager draft settings are retained. No Docker build, main update, image tag change or Pod modification was performed.
+The original graph's stale duplicate prompt edge and dangling audio link were removed when packing. The effective prompt remains empty by default. Frame-count rounding follows the original H3 formula, now using the selected FPS. Changing FPS is not frame interpolation. No TAE preview or RTX upscale is included.
 
-Sources for sizes (HF metadata checked 2026-09-30, file listings checked 2026-10-01):
-- https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/diffusion_models
-- https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/text_encoders
-- https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae
-- https://github.com/xmarre/ComfyUI-Spectrum-MiniMax-H3
-
-Validation: 15 unit tests (one nginx integration skipped locally); JavaScript syntax; real Git fetch of the pinned Spectrum revision into a temporary Comfy directory; exported JSON equality with MY.json; repeat installation preserves the existing node version; failed fetch leaves no partial installation. No full GPU runtime test or image build.
+Validation checks loader files against the manifest, both graph boundaries, defaults and install retry behavior. The compact workflow has not been fully validated through a GPU generation in the new container. The user's earlier successful local use (16 GB RAM, 12 GB VRAM, 90 GB pagefile) is not a verified container minimum. LightSpeed retains INT8/Kitchen Attention on every variant; cu128 compatibility remains unverified.

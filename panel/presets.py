@@ -30,8 +30,8 @@ def manifest(preset_id='native-h3'):
   files=[weight(f) for f in [diffusion,*H3_FILES[1:]]]
   return {'id':preset_id,'name':'MiniMax H3 · официальный I2V','description':'Основной пресет · video VAE FP16 · Turbo 8 шагов.','files':files,'optional_files':[],'custom_nodes':[], 'note':'Готовый workflow для основной сборки.'}
  if preset_id == 'my-h3':
-  files=[weight(H3_FILES[0]),weight(H3_FILES[1]),weight('vae/minimax_h3_video_vae_int8_convrot.safetensors'),weight(H3_FILES[3])]
-  return {'id':preset_id,'name':'LightSpeed H3','description':'MY.json · FL2VA INT8 · video VAE INT8 · Spectrum · без LoRA.','files':files,'optional_files':[],'custom_nodes':CUSTOM_NODES,'note':'Веса + твой workflow + Spectrum. После установки нод перезапусти ComfyUI через Manager. Для cu128 INT8/CK пока не проверен.', 'compatibility':'cu130' if os.getenv('IUNO_TORCH_INDEX','cu130')=='cu130' else 'unverified'}
+  files=[weight(H3_FILES[0]),weight(H3_FILES[1]),weight('vae/minimax_h3_video_vae_int8_convrot.safetensors'),weight(H3_FILES[3]),weight('loras/minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors', repo='drbaph/MiniMax-H3-Turbo-Lora-ComfyUI', source='minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors')]
+  return {'id':preset_id,'name':'LightSpeed H3','description':'FL2VA INT8 · video VAE INT8 · Spectrum · Turbo LoRA.','files':files,'optional_files':[],'custom_nodes':CUSTOM_NODES,'note':'Компактный workflow + веса + Spectrum. После установки нод перезапусти ComfyUI через Manager. Для cu128 INT8/CK пока не проверен.', 'compatibility':'cu130' if os.getenv('IUNO_TORCH_INDEX','cu130')=='cu130' else 'unverified'}
  raise ValueError('Unknown preset')
 
 def public_manifest(preset_id):

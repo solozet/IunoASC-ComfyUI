@@ -28,8 +28,26 @@ If the direct ComfyUI link from RunPod returns HTTP 403, try **ComfyUI ↗** in 
 | HTTP port | Interface | Features |
 | --- | --- | --- |
 | **3000** | ComfyUI | Native H3 nodes, classic Manager interface |
-| **8081** | Models & presets | Two compact preset cards, collapsible weight lists, HF LoRA downloads |
+| **8081** | Models & presets | Two compact preset cards, collapsible weight lists, HF weight downloads with explicit destination folders |
 | **8083** | Outputs | Folder browsing, individual downloads, streaming ZIP |
+
+Both panels support **English, Russian, German, French, Simplified Chinese and Japanese**. Use the language selector in the header. The choice is stored in the browser and carried in links between ports. Browser language is used for the initial selection, with English as the fallback.
+
+<details>
+<summary>Models and presets panel</summary>
+
+![Models, presets and Hugging Face weight downloads](docs/images/models.png)
+
+</details>
+
+<details>
+<summary>Outputs panel</summary>
+
+![Output downloads and ZIP archive](docs/images/outputs.png)
+
+</details>
+
+These are HTML-rendered previews of the actual panel source and API data, converted through PDF to PNG. They show a fresh setup with no downloaded weights or outputs; PDF form rendering can differ slightly from a browser.
 
 RunPod provides a separate HTTPS address for each port: `https://POD_ID-PORT.proxy.runpod.net/`. Links between the panels select the correct port automatically. These endpoints have no password; anyone with access to their URLs can use them.
 
@@ -37,25 +55,25 @@ RunPod provides a separate HTTPS address for each port: `https://POD_ID-PORT.pro
 
 | | Official MiniMax H3 I2V | **LightSpeed H3** |
 | --- | --- | --- |
-| Workflow | Adapted Comfy Org native I2V example | User-supplied `MY.json`, preserved without changes |
+| Workflow | Adapted Comfy Org native I2V example | Compact subgraph based on the user-edited workflow |
 | Diffusion model | FL2VA pruned INT8 ConvRot; FP8 scaled in cu128 | FL2VA pruned INT8 ConvRot |
 | Text encoder | Qwen3-VL 32B NVFP4 AWQ | Same encoder |
 | Video VAE | FP16 | **INT8 ConvRot** |
 | Audio VAE | FP32 | Same audio VAE |
-| LoRA | Official 8-step Turbo | None |
+| LoRA | Official 8-step Turbo | Turbo v4 + optional user LoRA |
 | Custom nodes | None required by the example | **Spectrum MiniMax H3** |
 | Selected sampling steps | 8 | 5 in the supplied JSON |
-| Weight files | 5 | 4 |
-| Total weights, decimal GB | **44.43 GB** with INT8; **44.41 GB** with FP8 | **40.07 GB** |
+| Weight files | 5 | 5 |
+| Total weights, decimal GB | **44.43 GB** with INT8; **44.41 GB** with FP8 | **40.69 GB** |
 | Install button | Weights + workflow | Weights + workflow + Spectrum |
 
-With the default **cu130 official preset** already installed, LightSpeed adds only the **2.81 GB INT8 video VAE**. Both presets together use **47.24 GB** in weights. These totals exclude the image, input media, outputs and caches. cu128 uses a different diffusion file, so that file is not shared with LightSpeed.
+With the default **cu130 official preset** already installed, LightSpeed adds the **2.81 GB INT8 video VAE** and **0.62 GB Turbo v4 LoRA**. Both presets together use **47.86 GB** in weights. These totals exclude the image, input media, outputs and caches. cu128 uses a different diffusion file, so that file is not shared with LightSpeed.
 
 ### LightSpeed H3 — source and credit
 
 LightSpeed H3 is based on **[MiniMax H3 Ultra Fastest True 4 Steps + HD Sound | 6GB VRAM 16GB RAM [V8 Update] Lightning Speed](https://civitai.com/models/2835250?modelVersionId=3305336)** by **[RedditUser9811](https://civitai.com/user/RedditUser9811)**.
 
-The original workflow was simplified by the user to the branches and weights they actually use, then supplied as `MY.json`. This preset packages that edited workflow; it is not an unchanged copy of the author's full V8 graph. The source title's “4 Steps” and memory figures describe the upstream resource; the supplied JSON selects **5 steps** and is not a verified hardware minimum for this container.
+The original workflow was simplified by the user to the branches and weights they actually use, then supplied as `MY.json`. This preset packages it as a compact native subgraph with editable video settings and separate Turbo/user LoRA controls. The source title's “4 Steps” and memory figures describe the upstream resource; the supplied JSON selects **5 steps** and is not a verified hardware minimum for this container.
 
 | LightSpeed weight | ComfyUI directory | Size |
 | --- | --- | ---: |
@@ -63,8 +81,9 @@ The original workflow was simplified by the user to the branches and weights the
 | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `text_encoders` | 15.69 GB |
 | `minimax_h3_video_vae_int8_convrot.safetensors` | `vae` | 2.81 GB |
 | `minimax_h3_audio_vae_fp32.safetensors` | `vae` | 0.61 GB |
+| `minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors` | `loras` | 0.62 GB |
 
-All four weights come from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3). The selected loader filenames determine the downloads; old REF2VA and FP16 VAE metadata inside the JSON is not used to select weights.
+The first four weights come from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3); Turbo v4 comes from [drbaph/MiniMax-H3-Turbo-Lora-ComfyUI](https://huggingface.co/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI). The selected loader filenames determine the downloads; old REF2VA and FP16 VAE metadata inside the JSON is not used to select weights.
 
 ### What installation does
 
@@ -78,9 +97,37 @@ All four weights come from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-O
 | ComfyUI restart | Manual through Manager to load newly installed nodes |
 | Status after page reload | Rechecks weight files on disk; matching sizes show as ready |
 
-The supplied LightSpeed graph has no LoRA loader, TAE preview or RTX upscale. Its six image inputs are bypassed. Enable and supply your own reference images when needed. Spectrum is its only custom-node package; the pinned snapshot has no additional pip dependencies.
+LightSpeed has Turbo v4 enabled at strength 1.0. Its additional LoRA is disabled by default and reuses the Turbo filename as a valid placeholder until you select your own file. There is no TAE preview or RTX upscale. Its six image inputs are bypassed. Enable and supply your own reference images when needed. Spectrum is its only custom-node package; the pinned snapshot has no additional pip dependencies.
 
 The official I2V example is adapted from Comfy Org's workflow; its MIT license is included in [`workflows/LICENSE`](workflows/LICENSE).
+
+### LightSpeed controls
+
+| Control | Default / behavior |
+| --- | --- |
+| Prompt | Editable inside the compact node; empty by default |
+| Resolution | Main-canvas selector with aspect ratio, megapixels and live dimensions; 9:16, 2 MP, multiple 32 |
+| Duration / steps | 5 seconds / 5 steps |
+| FPS | 24; also drives frame count, rounded to H3's supported frame lengths |
+| Color / depth | HDR / 10-bit; SDR and other supported bit depths selectable |
+| Turbo v4 LoRA | Enabled / strength 1.0 |
+| Additional LoRA | File selector, enable switch and strength; disabled by default |
+| Spectrum | Enabled; detailed settings inside the subgraph |
+| Noise | Inside the subgraph; randomize by default |
+| Resolution reference table | On the main canvas |
+
+### Download your own weights
+
+Paste `author/repository`, a Hugging Face repository URL, or a `blob`/`resolve` file URL. Click **Find files**, choose a file and its type, then **Download weight**. A direct file URL preselects that file. The selected type determines the destination; the downloader does not infer model architecture or compatibility.
+
+| Selected type | ComfyUI destination |
+| --- | --- |
+| LoRA (default) | `models/loras` |
+| Diffusion model | `models/diffusion_models` |
+| Text encoder | `models/text_encoders` |
+| VAE | `models/vae` |
+
+Supported file extensions: `.safetensors`, `.gguf`, `.ckpt`, `.bin`, `.pt`, `.pth`. Listing a file does not guarantee that ComfyUI has the loader needed for that format. Files are saved under their basename; an existing non-empty file of that name is reused. Preset weights additionally check exact byte sizes. Refresh ComfyUI's model lists after downloading and choose the file in its loader.
 
 ## Image variants
 
@@ -128,7 +175,8 @@ This setup uses Container Disk rather than persistent storage. Save outputs and 
 
 | Check | Status / scope |
 | --- | --- |
-| CI tests | Preset manifests, workflow matching, installer retries and preflight error handling |
+| CI tests | Preset manifests, subgraph links/defaults, HF URL/folder routing, installer retries and preflight error handling |
+| Panel checks | All six dictionaries, language switching/persistence, cross-port links, direct file selection and destination folder |
 | Image build checks | CPU imports; public services on all three ports; both preset/workflow APIs; output file and ZIP downloads |
 | Spectrum installation | Pinned Git snapshot and repeat installation verified in a temporary directory |
 | Prior GPU startup | CUDA/Kitchen smoke tests and ComfyUI startup passed on an RTX 4090 with cu130 |

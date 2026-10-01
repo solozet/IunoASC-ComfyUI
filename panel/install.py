@@ -22,7 +22,7 @@ def install_preset(preset_id: str, progress) -> bool:
     item = manifest(preset_id)
     with install_lock:
         if preset_id == 'my-h3':
-            progress('Установка Spectrum…')
+            progress('install_spectrum')
             root = COMFY_DIR / 'custom_nodes'
             root.mkdir(parents=True, exist_ok=True)
             target = root / SPECTRUM_NAME
@@ -44,7 +44,7 @@ def install_preset(preset_id: str, progress) -> bool:
                         raise ValueError('Invalid Spectrum snapshot')
                     # This pinned Spectrum revision has no additional pip dependencies.
                     source.rename(target)
-        progress('Сохранение workflow…')
+        progress('save_workflow')
         workflow_dir = COMFY_DIR / 'user' / 'default' / 'workflows'
         workflow_dir.mkdir(parents=True, exist_ok=True)
         filename = 'lightspeed-h3.json' if preset_id == 'my-h3' else 'iunoasc-native-h3.json'
