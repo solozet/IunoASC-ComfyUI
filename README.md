@@ -1,65 +1,155 @@
 # IunoASC ComfyUI
 
-A minimal RunPod ComfyUI container with native MiniMax H3, Manager, a Hugging Face downloader and an output browser. No persistent volume or model files in the image. The first CUDA 13.0 Pod failed with CUDA error 804 before ComfyUI started; its host GPU and driver were not captured. The corrected images still need a real GPU test.
+ComfyUI for RunPod with MiniMax H3 presets, classic Manager, one-click model installation and an output browser. Weights are downloaded on demand; they are not bundled in the image.
+
+[Docker Hub](https://hub.docker.com/r/solozeet/comfyui/tags) · [Build status](https://github.com/solozet/IunoASC-ComfyUI/actions/workflows/build.yml) · [ComfyUI v0.38.0](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.38.0)
+
+## Quick start
+
+| RunPod template field | Value |
+| --- | --- |
+| Container image | `solozeet/comfyui:cu130` |
+| Start Command | **Empty** — the image starts its own services |
+| HTTP ports | `3000,8081,8083` |
+| Container Disk | **150 GB** for the image, presets and working output space |
+| Volume Disk / network volume | Not required by this setup |
+| Required environment variables | **None** |
+| Login / password | None |
+
+1. Launch the Pod and check its logs for `[IunoASC] GPU preflight passed` and the ComfyUI ready message.
+2. Open the models panel on port **8081** and choose a preset. **Install preset** downloads missing weights, saves the workflow on the Pod and downloads a JSON copy in your browser.
+3. For **LightSpeed H3**, restart **ComfyUI through Manager** after installing Spectrum. Import the downloaded JSON or open the saved workflow in ComfyUI.
+4. Download finished outputs from port **8083** before stopping or deleting the Pod.
+
+If the direct ComfyUI link from RunPod returns HTTP 403, try **ComfyUI ↗** in the models panel. ComfyUI's cross-site origin check can reject a navigation from another site. This check is not authentication.
 
 ## Interfaces
 
-| HTTP port | Purpose |
+| HTTP port | Interface | Features |
+| --- | --- | --- |
+| **3000** | ComfyUI | Native H3 nodes, classic Manager interface |
+| **8081** | Models & presets | Two compact preset cards, collapsible weight lists, HF LoRA downloads |
+| **8083** | Outputs | Folder browsing, individual downloads, streaming ZIP |
+
+RunPod provides a separate HTTPS address for each port: `https://POD_ID-PORT.proxy.runpod.net/`. Links between the panels select the correct port automatically. These endpoints have no password; anyone with access to their URLs can use them.
+
+## Presets
+
+| | Official MiniMax H3 I2V | **LightSpeed H3** |
+| --- | --- | --- |
+| Workflow | Adapted Comfy Org native I2V example | User-supplied `MY.json`, preserved without changes |
+| Diffusion model | FL2VA pruned INT8 ConvRot; FP8 scaled in cu128 | FL2VA pruned INT8 ConvRot |
+| Text encoder | Qwen3-VL 32B NVFP4 AWQ | Same encoder |
+| Video VAE | FP16 | **INT8 ConvRot** |
+| Audio VAE | FP32 | Same audio VAE |
+| LoRA | Official 8-step Turbo | None |
+| Custom nodes | None required by the example | **Spectrum MiniMax H3** |
+| Selected sampling steps | 8 | 5 in the supplied JSON |
+| Weight files | 5 | 4 |
+| Total weights, decimal GB | **44.43 GB** with INT8; **44.41 GB** with FP8 | **40.07 GB** |
+| Install button | Weights + workflow | Weights + workflow + Spectrum |
+
+With the default **cu130 official preset** already installed, LightSpeed adds only the **2.81 GB INT8 video VAE**. Both presets together use **47.24 GB** in weights. These totals exclude the image, input media, outputs and caches. cu128 uses a different diffusion file, so that file is not shared with LightSpeed.
+
+### LightSpeed H3 — source and credit
+
+LightSpeed H3 is based on **[MiniMax H3 Ultra Fastest True 4 Steps + HD Sound | 6GB VRAM 16GB RAM [V8 Update] Lightning Speed](https://civitai.com/models/2835250?modelVersionId=3305336)** by **[RedditUser9811](https://civitai.com/user/RedditUser9811)**.
+
+The original workflow was simplified by the user to the branches and weights they actually use, then supplied as `MY.json`. This preset packages that edited workflow; it is not an unchanged copy of the author's full V8 graph. The source title's “4 Steps” and memory figures describe the upstream resource; the supplied JSON selects **5 steps** and is not a verified hardware minimum for this container.
+
+| LightSpeed weight | ComfyUI directory | Size |
+| --- | --- | ---: |
+| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `diffusion_models` | 20.97 GB |
+| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `text_encoders` | 15.69 GB |
+| `minimax_h3_video_vae_int8_convrot.safetensors` | `vae` | 2.81 GB |
+| `minimax_h3_audio_vae_fp32.safetensors` | `vae` | 0.61 GB |
+
+All four weights come from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3). The selected loader filenames determine the downloads; old REF2VA and FP16 VAE metadata inside the JSON is not used to select weights.
+
+### What installation does
+
+| Component | Behavior |
 | --- | --- |
-| `3000` | ComfyUI with native H3 nodes and Manager |
-| `8081` | Preset/model download UI, HF repository and token for LoRAs |
-| `8083` | Outputs UI, individual downloads, streaming ZIP |
+| Weights | Downloads missing files; checks expected byte sizes; reuses matching files |
+| Workflow | Saves to `/opt/ComfyUI/user/default/workflows` and offers a browser download |
+| LightSpeed workflow filename on Pod | `lightspeed-h3.json` |
+| Spectrum | Installs [ComfyUI-Spectrum-MiniMax-H3](https://github.com/xmarre/ComfyUI-Spectrum-MiniMax-H3) at `dc6e1b335e1cdcd078a649add6464dab9469a587` |
+| Existing Spectrum installation | Preserved; not overwritten or upgraded |
+| ComfyUI restart | Manual through Manager to load newly installed nodes |
+| Status after page reload | Rechecks weight files on disk; matching sizes show as ready |
 
-The models page also offers an adapted copy of Comfy Org's official native H3 I2V workflow. Its diffusion model and FP16 video VAE names match the active image preset. Upload your own starting image in the workflow. The upstream workflow is MIT licensed; its license is in `workflows/LICENSE`.
+The supplied LightSpeed graph has no LoRA loader, TAE preview or RTX upscale. Its six image inputs are bypassed. Enable and supply your own reference images when needed. Spectrum is its only custom-node package; the pinned snapshot has no additional pip dependencies.
 
-Expose **HTTP ports `3000,8081,8083`** in RunPod. Each service has a separate HTTPS link in Connect: `https://POD_ID-PORT.proxy.runpod.net/`. The panels link to the matching ports automatically. No login or password is required; `PANEL_PASSWORD` is unused and can be removed from the template. HF tokens are submitted only for download jobs and are not stored in the image or configuration.
+The official I2V example is adapted from Comfy Org's workflow; its MIT license is included in [`workflows/LICENSE`](workflows/LICENSE).
 
 ## Image variants
 
-| Short tag (alias) | Versioned tag | NVIDIA base CUDA | PyTorch wheel | Attention / model | Host driver policy |
-| --- | --- | --- | --- | --- | --- |
-| `cu130` | `comfy0.38.0-cu130` | 13.0.2 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 580.95.05 |
-| `cu128` | `comfy0.38.0-cu128` | 12.8.1 | 2.9.1+cu128 (CUDA 12.8) | Standard / FP8 scaled | >= 570.124.06 |
-| `cu131` | `comfy0.38.0-cu131` | 13.1.1 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 590.48.01 |
-| `cu132` | `comfy0.38.0-cu132` | 13.2.0 | 2.9.1+cu130 (CUDA 13.0) | Comfy Kitchen / INT8 ConvRot | >= 595.45.04 |
+| Image suffix | NVIDIA base CUDA | PyTorch | Default attention / diffusion | Host driver policy |
+| --- | --- | --- | --- | --- |
+| **`cu130`** | 13.0.2 | 2.9.1+cu130 | Comfy Kitchen / INT8 ConvRot | ≥ 580.95.05 |
+| `cu128` | 12.8.1 | 2.9.1+cu128 | Standard attention / FP8 scaled | ≥ 570.124.06 |
+| `cu131` | 13.1.1 | 2.9.1+cu130 | Comfy Kitchen / INT8 ConvRot | ≥ 590.48.01 |
+| `cu132` | 13.2.0 | 2.9.1+cu130 | Comfy Kitchen / INT8 ConvRot | ≥ 595.45.04 |
 
-All tags are under `solozeet/comfyui`. For quick switching, use `solozeet/comfyui:cu130` and change only the suffix to `cu128`, `cu131` or `cu132`. The short aliases follow future releases; `comfy0.38.0-cu130` (and its sibling tags) selects this ComfyUI release. Existing `r2` and `r3` tags are not overwritten. All four variants still need an end-to-end H3 test on a real GPU.
+Use `solozeet/comfyui:<suffix>` to switch variants. Each also has a ComfyUI-release tag such as `solozeet/comfyui:comfy0.38.0-cu130`. Both tag forms are updated by rebuilds; use an image digest if you need an immutable build.
 
-**In our short and versioned tags, cu131/cu132 identify the NVIDIA base, not the PyTorch wheel. The last two rows remain experimental base-image variants, not native PyTorch cu131/cu132 builds.** [Official PyTorch 2.9.1 packages](https://pytorch.org/get-started/previous-versions/#v291) are available for cu126/cu128/cu130, not cu131/cu132. PyTorch's CUDA version in both new images remains **13.0**. Its wheel installs its own CUDA dependencies, so a newer base does not upgrade every library used for computation. The tests compare base environments while preserving the existing torch/torchvision/torchaudio stack. Newer PyTorch cu132 releases exist; upgrading PyTorch is a separate change. ComfyUI 0.38.0 removed its core torchaudio dependency; this image retains torchaudio 2.9.1 alongside the matching PyTorch for existing custom-node compatibility.
+**cu131 and cu132 are experimental NVIDIA-base variants. They still use the PyTorch CUDA 13.0 wheel.** A newer base does not upgrade the wheel's CUDA dependencies or repair a host driver. See [PyTorch 2.9.1 packages](https://pytorch.org/get-started/previous-versions/#v291).
 
-The driver floors above are this project's conservative policy, using the paired Linux drivers from NVIDIA's release notes for [12.8.1](https://docs.nvidia.com/cuda/archive/12.8.1/cuda-toolkit-release-notes/index.html), [13.0.2](https://docs.nvidia.com/cuda/archive/13.0.2/cuda-toolkit-release-notes/index.html), [13.1.1](https://docs.nvidia.com/cuda/archive/13.1.1/cuda-toolkit-release-notes/index.html), and [13.2.0](https://docs.nvidia.com/cuda/archive/13.2.0/cuda-toolkit-release-notes/index.html). They are **not universal NVIDIA minimums**: CUDA 13.x minor-version compatibility permits some applications on R580, with restrictions. These images deliberately avoid depending on that for newer bases. A newer base does not repair error 804 or install a host driver.
+The driver thresholds are this project's conservative policy, not universal NVIDIA minimums. They use the paired drivers from NVIDIA's release notes: [12.8.1](https://docs.nvidia.com/cuda/archive/12.8.1/cuda-toolkit-release-notes/index.html), [13.0.2](https://docs.nvidia.com/cuda/archive/13.0.2/cuda-toolkit-release-notes/index.html), [13.1.1](https://docs.nvidia.com/cuda/archive/13.1.1/cuda-toolkit-release-notes/index.html), [13.2.0](https://docs.nvidia.com/cuda/archive/13.2.0/cuda-toolkit-release-notes/index.html). RunPod's CUDA filter helps select hosts; the exact driver and GPU checks still come from startup logs.
 
-In RunPod **Additional filters → CUDA Versions**, select the base's minor version and newer versions (13.1+ for base13.1.1, 13.2+ for base13.2.0), then confirm the exact driver in startup logs. This does not test or repair the host's container runtime. The NVIDIA entrypoint may reject an incompatible host before our script runs; retain RunPod system logs in that case. Do not disable NVIDIA's compatibility checks.
+LightSpeed keeps the supplied INT8/Kitchen Attention settings in every image. Its compatibility with **cu128 is unverified**; the cu128 default applies to the official preset.
 
-ComfyUI is pinned to `v0.38.0`, with Comfy Kitchen `0.2.36`. [Comfy Org recommends FP8](https://huggingface.co/Comfy-Org/MiniMax-H3) only when INT8 ConvRot cannot run. Each image chooses its attention backend and diffusion model automatically. Do not set `IUNO_TORCH_INDEX` or `IUNO_CUDA_BASE_VERSION` in RunPod; they describe the actual built image.
+## Included stack
 
-At startup `preflight.py` prints the base CUDA, PyTorch CUDA, GPU, driver, SM architecture and VRAM. It verifies the wheel, initializes CUDA, performs tiny FP16 matrix multiplication and standard attention, and (for CK images) forces a Comfy Kitchen CUDA quantization operation with a result check. It logs actual loaded CUDA library paths, including `libcuda`, to help diagnose unwanted compatibility libraries. The startup check has a 90-second timeout. These smoke tests do not validate all H3 kernels, model memory requirements, or video/audio generation.
+| Component | Version / mode |
+| --- | --- |
+| ComfyUI | **v0.38.0** |
+| ComfyUI Manager | **4.2.2**, enabled with classic UI |
+| Comfy Kitchen | **0.2.36** |
+| PyTorch / torchvision / torchaudio | **2.9.1 / 0.24.1 / 2.9.1** |
+| Model downloads | Hugging Face Hub |
+| Web panels | FastAPI / Uvicorn |
+| ComfyUI gateway | nginx |
 
-**Preflight failure exits the container; it does not stop the paid RunPod allocation.** Save the logs and stop/terminate a failing Pod yourself instead of waiting through restart loops. The script does not install host drivers, automatically change images, or download models. CI tests mock the GPU and verify failure handling only; a Docker build runs CPU import checks and cannot prove GPU compatibility.
+Classic Manager uses `--enable-manager --enable-manager-legacy-ui`; no separate Manager port or installation is needed. ComfyUI 0.38.0 includes H3 VAE seam and offloaded `rms_rope` fixes; see its [release notes](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.38.0).
 
-## ComfyUI 0.38.0 and Manager
+## Storage and configuration
 
-This release is useful for H3: it fixes VAE tile-crossing seams ([#16436](https://github.com/Comfy-Org/ComfyUI/pull/16436)) and a fused `rms_rope` crash when `qk_norm_scale` is offloaded to CPU ([#16485](https://github.com/Comfy-Org/ComfyUI/pull/16485)). It also adds MiniMax-H3 Fun-Controlnet-Union 2.0 support; the default I2V preset still downloads only its original five files. See the [release notes](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.38.0). These application changes do not repair host CUDA error 804.
+| Item | Location / behavior |
+| --- | --- |
+| Models | `/data/models`, linked to ComfyUI's `models` directory |
+| Input media | `/data/inputs` |
+| Generated outputs | `/data/outputs` |
+| HF tokens | Optional fields in the downloader; not saved in image or configuration |
+| `PANEL_PASSWORD` | Unused; remove from old templates |
+| `IUNO_TORCH_INDEX`, `IUNO_CUDA_BASE_VERSION` | Set by the image; do not override in RunPod |
+| Old attention / diffusion overrides | Remove `IUNO_ATTENTION` and `IUNO_H3_DIFFUSION_FILE` to use image defaults |
 
-**ComfyUI Manager is installed and enabled.** The Dockerfile installs upstream `manager_requirements.txt` (`comfyui_manager==4.2.2` for v0.38.0), and `start.sh` passes `--enable-manager`. Build logs print the installed Manager version. Access it from ComfyUI after the server starts; it does not use a separate exposed port. No extra Manager installation or startup argument is needed.
+This setup uses Container Disk rather than persistent storage. Save outputs and any custom changes before stopping or deleting the Pod. Job progress lives in memory: restarting the models panel loses the progress record, but repeating installation reuses completed weights of the expected size.
 
-## Preset
+## Validation and troubleshooting
 
-Five files from `Comfy-Org/MiniMax-H3`: pruned INT8 ConvRot UNet (FP8 in cu128), NVFP4 AWQ Qwen text encoder, FP16 video VAE, FP32 audio VAE, 8-step Turbo LoRA. The download page puts files under `/data/models/{diffusion_models,text_encoders,vae,loras}` and the ComfyUI `models` directory points there. Models are downloaded only when requested. No other H3 files or style embeddings are needed for the default I2V example.
+| Check | Status / scope |
+| --- | --- |
+| CI tests | Preset manifests, workflow matching, installer retries and preflight error handling |
+| Image build checks | CPU imports; public services on all three ports; both preset/workflow APIs; output file and ZIP downloads |
+| Spectrum installation | Pinned Git snapshot and repeat installation verified in a temporary directory |
+| Prior GPU startup | CUDA/Kitchen smoke tests and ComfyUI startup passed on an RTX 4090 with cu130 |
+| Full generation in this updated image | **Not yet validated on GPU** |
+| LightSpeed local use | User reports 16 GB RAM, 12 GB VRAM and a 90 GB pagefile; not a container benchmark |
 
-## Build and use
+Startup preflight reports the base CUDA, PyTorch CUDA, GPU, driver and VRAM. It tests CUDA initialization, FP16 matrix multiplication, standard attention and, for Kitchen images, CUDA quantization. It has a 90-second timeout; it does not validate full H3 generation or peak memory use.
 
-1. Create a GitHub repository and add these source files.
-2. Create a Docker Hub repository `comfyui` and set GitHub Actions secrets `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (a Docker Hub access token, not your password).
-3. Merging a PR to `main` builds and pushes all four images automatically; **Build IunoASC ComfyUI** can also be triggered manually. A successful GitHub Action only proves the images built; it does not prove H3 runs on a GPU.
-4. Create a private RunPod template for each variant you want to test, with `Container Image` `solozeet/comfyui:<tag from the table>`, **HTTP ports `3000,8081,8083`**, and an empty Start Command. Remove old `IUNO_ATTENTION` and `IUNO_H3_DIFFUSION_FILE` overrides so the matching defaults built into each image take effect.
-5. Use **Container Disk**, sized for the image, ~45 GB of H3 files and outputs. No network volume. Check the storage selection before launch so the template does not create a paid Volume Disk by default.
-6. Before downloading weights, check container logs for `[IunoASC] GPU preflight passed` and the ComfyUI ready message. On the Pod, open port `3000` for ComfyUI, `8081` to fetch weights and download the matching workflow, and `8083` to download outputs. Drag the workflow JSON into ComfyUI. No password is requested. Verify the archive on your PC before stopping the Pod.
+**A failed preflight exits the container but does not stop the paid RunPod allocation.** Save the logs and stop a failing Pod yourself. The image cannot install a host driver or fix a broken GPU host. A successful build is not a GPU generation test.
 
-## Limits to validate on GPU
+## Building
 
-- CUDA, Comfy Kitchen smoke tests and ComfyUI 0.38.0 startup passed on an RTX 4090 with CUDA 13.0. Full H3 generation, audio/video decode and the FP8 cu128 workflow still need real Pod tests.
-- The page shows progress by file, not per-byte transfer rate. Hugging Face may cache metadata beside files in `/data/models/.cache`.
-- If 8081 is restarted mid-download, the in-memory job status is lost. HF library metadata can avoid downloading finished files again when rerun.
-- Installing arbitrary custom nodes through Manager may change packages in the running Pod; a fresh Pod restores the base image.
-- RunPod stops erase Container Disk; termination also removes the Pod's own volume. Download outputs before either action.
+| Step | Action |
+| --- | --- |
+| Docker Hub | Create the `comfyui` repository |
+| GitHub secrets | Set `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` |
+| Publish | A push to `main` builds and publishes all four variants |
+| Manual build | Run **Build IunoASC ComfyUI** in GitHub Actions |
+| Documentation-only changes | Use `[skip ci]` to avoid an unnecessary image rebuild |
+
+Workflow: [`.github/workflows/build.yml`](.github/workflows/build.yml).
