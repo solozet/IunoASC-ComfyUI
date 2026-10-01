@@ -15,7 +15,9 @@ from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingRes
 from huggingface_hub import HfApi, hf_hub_download
 from pydantic import BaseModel, Field
 
-from .core import H3_REPO, MODEL_DIR, OUTPUT_DIR, format_size, model_target, output_target, preset_files, preset_workflow
+from .core import H3_REPO, MODEL_DIR, OUTPUT_DIR, format_size, model_target, output_target
+from .presets import manifest, public_manifest, workflow_for
+from .install import install_preset
 
 MODE = os.getenv("PANEL_MODE", "models")
 if MODE not in {"models", "outputs"}:
@@ -29,6 +31,11 @@ jobs_lock = threading.Lock()
 
 class TokenRequest(BaseModel):
     token: str = Field(default="", max_length=4096)
+
+
+class PresetRequest(TokenRequest):
+    preset: str = "native-h3"
+    include_optional: bool = False
 
 
 class LoraListRequest(TokenRequest):
@@ -46,35 +53,50 @@ def _repo_name(repo: str) -> str:
     return repo
 
 
-def _new_job(files: list[tuple[str, str, str]], token: str) -> str:
+def _new_job(files: list[tuple[str, str, str]], token: str, sizes: dict[str, int] | None = None, preset_id: str | None = None) -> str:
     job_id = uuid.uuid4().hex
     with jobs_lock:
-        jobs[job_id] = {"state": "running", "done": 0, "total": len(files), "current": "", "error": ""}
+        jobs[job_id] = {"state": "running", "done": 0, "total": len(files) + bool(preset_id), "current": "", "error": "", "restart_required": False}
 
     def run() -> None:
+        installing = False
         try:
             for repo, source, destination in files:
                 with jobs_lock:
                     jobs[job_id]["current"] = source
                 target = model_target(destination)
                 target.parent.mkdir(parents=True, exist_ok=True)
+                expected = (sizes or {}).get(destination)
+                repair = target.is_file() and expected is not None and target.stat().st_size != expected
                 if repo == H3_REPO:
                     # local_dir preserves the official model subdirectories.
-                    hf_hub_download(repo_id=repo, filename=source, local_dir=MODEL_DIR, token=token or None)
-                elif not target.is_file() or target.stat().st_size == 0:
+                    hf_hub_download(repo_id=repo, filename=source, local_dir=MODEL_DIR, token=token or None, force_download=repair)
+                elif repair or not target.is_file() or target.stat().st_size == 0:
                     # Keep a single copy; moving inside the same filesystem is cheap.
-                    staging = MODEL_DIR / ".hf-loras" / repo.replace("/", "_")
-                    downloaded = Path(hf_hub_download(repo_id=repo, filename=source, local_dir=staging, token=token or None))
+                    staging = MODEL_DIR / ".hf-downloads" / repo.replace("/", "_")
+                    downloaded = Path(hf_hub_download(repo_id=repo, filename=source, local_dir=staging, token=token or None, force_download=repair))
                     shutil.move(downloaded, target)
+                if expected is not None and target.stat().st_size != expected:
+                    raise ValueError("Downloaded file has unexpected size")
                 with jobs_lock:
                     jobs[job_id]["done"] += 1
+            if preset_id:
+                installing = True
+                def progress(message):
+                    with jobs_lock:
+                        jobs[job_id]['current'] = message
+                restart_required = install_preset(preset_id, progress)
+                with jobs_lock:
+                    jobs[job_id]['restart_required'] = restart_required
+                    jobs[job_id]['done'] += 1
             with jobs_lock:
                 jobs[job_id]["state"] = "done"
         except Exception:
             # Do not reflect library exception strings: they may include private URLs.
             with jobs_lock:
                 jobs[job_id]["state"] = "failed"
-                jobs[job_id]["error"] = "Не удалось скачать файл. Проверь HF-токен, доступ к модели и свободное место."
+                jobs[job_id]["error"] = ("Веса скачаны, но не удалось установить ноды или workflow. Проверь доступ к GitHub и свободное место; можно повторить установку."
+                                         if installing else "Не удалось скачать файл. Проверь HF-токен, доступ к модели и свободное место.")
 
     threading.Thread(target=run, daemon=True).start()
     return job_id
@@ -96,31 +118,48 @@ def javascript():
     return FileResponse(Path(__file__).parent / "static" / "app.js", media_type="text/javascript")
 
 
-@app.get("/api/preset")
-def preset_status():
+def checked_preset(preset: str):
+    try:
+        return manifest(preset)
+    except ValueError:
+        raise HTTPException(404, "Пресет не найден")
+
+
+@app.get("/api/presets")
+def all_presets():
     if MODE != "models":
         raise HTTPException(404)
-    return {"files": [{"filename": f, "ready": model_target(f).is_file()} for f in preset_files()]}
+    return {"presets": [public_manifest(name) for name in ["native-h3", "my-h3"]]}
+
+
+@app.get("/api/preset")
+def preset_status(preset: str = "native-h3"):
+    if MODE != "models":
+        raise HTTPException(404)
+    checked_preset(preset)
+    return public_manifest(preset)
 
 
 @app.get("/api/workflow")
-def workflow():
+def workflow(preset: str = "native-h3"):
     if MODE != "models":
         raise HTTPException(404)
+    checked_preset(preset)
     import json
-
-    return Response(
-        json.dumps(preset_workflow(), ensure_ascii=False),
-        media_type="application/json",
-        headers={"Content-Disposition": 'attachment; filename="iunoasc-h3-i2v.json"'},
-    )
+    return Response(json.dumps(workflow_for(preset), ensure_ascii=False),
+                    media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="iunoasc-{preset}.json"'})
 
 
 @app.post("/api/preset")
-def download_preset(request: TokenRequest):
+def download_preset(request: PresetRequest):
     if MODE != "models":
         raise HTTPException(404)
-    return {"id": _new_job([(H3_REPO, f, f) for f in preset_files()], request.token)}
+    item = checked_preset(request.preset)
+    files = item['files'] + (item['optional_files'] if request.include_optional else [])
+    missing = [f for f in files if not model_target(f['filename']).is_file()
+               or model_target(f['filename']).stat().st_size != f['size_bytes']]
+    return {"id": _new_job([(f['repo'], f['source'], f['filename']) for f in missing], request.token, {f['filename']: f['size_bytes'] for f in missing}, request.preset)}
 
 
 @app.post("/api/loras")

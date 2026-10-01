@@ -56,6 +56,14 @@ class GatewayTest(unittest.TestCase):
                     self.assertTrue(get(port, '/style.css'))
                 self.assertEqual(len(json.loads(get(8081, '/api/preset'))['files']), 5)
                 self.assertIn('nodes', json.loads(get(8081, '/api/workflow')))
+                presets = json.loads(get(8081, '/api/presets'))['presets']
+                self.assertEqual([p['id'] for p in presets], ['native-h3', 'my-h3'])
+                self.assertEqual(presets[1]['name'], 'LightSpeed H3')
+                self.assertEqual(len(presets[1]['files']), 4)
+                self.assertEqual(len(presets[1]['custom_nodes']), 1)
+                lightspeed = json.loads(get(8081, '/api/workflow?preset=my-h3'))
+                self.assertEqual(next(n for n in lightspeed['nodes'] if n['type']=='UNETLoader')['widgets_values'][0],
+                                 'minimax_h3_fl2va_pruned_int8_convrot.safetensors')
                 self.assertEqual(json.loads(get(8083, '/api/outputs'))['files'][0]['name'], 'result.txt')
                 self.assertEqual(get(8083, '/api/outputs/file?path=result.txt'), b'output-ok')
                 self.assertTrue(get(8083, '/api/outputs/archive').startswith(b'PK'))

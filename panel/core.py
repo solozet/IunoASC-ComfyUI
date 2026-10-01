@@ -50,7 +50,7 @@ def model_target(filename: str) -> Path:
     rel = PurePosixPath(filename)
     if rel.is_absolute() or ".." in rel.parts or len(rel.parts) < 2:
         raise ValueError("Invalid model path")
-    if rel.parts[0] not in {"diffusion_models", "text_encoders", "vae", "loras", "embeddings"}:
+    if rel.parts[0] not in {"diffusion_models", "text_encoders", "vae", "loras", "embeddings", "vae_approx"}:
         raise ValueError("Unsupported model directory")
     target = (MODEL_DIR / Path(*rel.parts)).resolve()
     if not target.is_relative_to(MODEL_DIR.resolve()):

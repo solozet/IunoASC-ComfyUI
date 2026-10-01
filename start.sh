@@ -61,7 +61,7 @@ outputs_pid=$!
 cleanup() { kill "$gateway_pid" "$models_pid" "$outputs_pid" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
-args=(--listen 127.0.0.1 --port 3001 --enable-manager \
+args=(--listen 127.0.0.1 --port 3001 --enable-manager --enable-manager-legacy-ui \
       --input-directory /data/inputs --output-directory /data/outputs)
 if [[ "${IUNO_ATTENTION:-ck}" == "ck" ]]; then
   args+=(--use-ck-attention)
