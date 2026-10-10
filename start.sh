@@ -24,6 +24,7 @@ fi
 # A successful Docker build does not test the RunPod host's CUDA driver.
 timeout --signal=TERM --kill-after=5s 90s python /opt/iunoasc/preflight.py
 mkdir -p /data/models /data/inputs /data/outputs
+python -m panel.install
 
 # ComfyUI uses port 3000; model and output panels have separate public ports.
 cat > /tmp/iunoasc-nginx.conf <<'NGINX'
@@ -57,8 +58,10 @@ PANEL_MODE=models uvicorn panel.app:app --host 0.0.0.0 --port 8081 --no-access-l
 models_pid=$!
 PANEL_MODE=outputs uvicorn panel.app:app --host 0.0.0.0 --port 8083 --no-access-log &
 outputs_pid=$!
+PANEL_MODE=control uvicorn panel.app:app --host 0.0.0.0 --port 8082 --no-access-log &
+control_pid=$!
 
-cleanup() { kill "$gateway_pid" "$models_pid" "$outputs_pid" 2>/dev/null || true; }
+cleanup() { kill "$gateway_pid" "$models_pid" "$outputs_pid" "$control_pid" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
 args=(--listen 127.0.0.1 --port 3001 --enable-manager --enable-manager-legacy-ui \

@@ -12,7 +12,7 @@ class PresetTests(unittest.TestCase):
         names = {Path(f['filename']).name for f in preset['files']}
         nodes = workflow['nodes'] + [n for d in workflow.get('definitions', {}).get('subgraphs', []) for n in d['nodes']]
         for node in nodes:
-            if node['type'] in {'UNETLoader', 'VAELoader', 'CLIPLoader', 'LoraLoaderModelOnly'}:
+            if node['type'] in {'UNETLoader', 'VAELoader', 'CLIPLoader', 'LoraLoaderModelOnly', 'IunoOptionalLora'}:
                 self.assertIn(node['widgets_values'][0], names)
         self.assertEqual(sum(f['size_bytes'] for f in preset['files']), 40694127751)
         self.assertEqual(len(preset['files']), 5)
@@ -21,7 +21,7 @@ class PresetTests(unittest.TestCase):
         native_names={f['filename'] for f in presets.manifest('native-h3')['files']}
         self.assertEqual([f['filename'] for f in preset['files'] if f['filename'] not in native_names],
                          ['vae/minimax_h3_video_vae_int8_convrot.safetensors', 'loras/minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors'])
-        self.assertTrue(all(n['mode']==4 for n in workflow['nodes'] if n['type']=='LoadImage'))
+        self.assertEqual([n['mode'] for n in workflow['nodes'] if n['type']=='LoadImage'], [0,4,4,4,4,4])
 
     def test_compact_workflow_boundaries_and_defaults(self):
         workflow = presets.workflow_for('my-h3')

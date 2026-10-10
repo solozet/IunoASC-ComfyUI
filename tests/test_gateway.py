@@ -38,7 +38,7 @@ class GatewayTest(unittest.TestCase):
             try:
                 subprocess.run(['nginx', '-t', '-c', '/tmp/iunoasc-nginx.conf'], check=True)
                 subprocess.run(['nginx', '-c', '/tmp/iunoasc-nginx.conf'], check=True)
-                for mode, port in [('models', 8081), ('outputs', 8083)]:
+                for mode, port in [('models', 8081), ('outputs', 8083), ('control', 8082)]:
                     processes.append(subprocess.Popen(['python', '-m', 'uvicorn', 'panel.app:app', '--host', '0.0.0.0', '--port', str(port)], env={**env, 'PANEL_MODE': mode}))
                 def get(port, path='/'):
                     for attempt in range(100):
@@ -50,7 +50,7 @@ class GatewayTest(unittest.TestCase):
                             if attempt == 99: raise
                             time.sleep(.1)
                 self.assertEqual(get(3000), b'comfy-ok')
-                for port in [8081, 8083]:
+                for port in [8081, 8082, 8083]:
                     self.assertIn(b'<!doctype html>', get(port))
                     self.assertTrue(get(port, '/app.js'))
                     self.assertTrue(get(port, '/style.css'))
@@ -58,7 +58,9 @@ class GatewayTest(unittest.TestCase):
                 self.assertEqual(len(json.loads(get(8081, '/api/preset'))['files']), 5)
                 self.assertIn('nodes', json.loads(get(8081, '/api/workflow')))
                 presets = json.loads(get(8081, '/api/presets'))['presets']
-                self.assertEqual([p['id'] for p in presets], ['native-h3', 'my-h3'])
+                self.assertEqual([p['id'] for p in presets], ['native-h3', 'my-h3', 'experimental-h3'])
+                self.assertIn('versions', json.loads(get(8082, '/api/status')))
+                self.assertEqual(presets[2]['files'][2]['size_bytes'], 2137493384)
                 self.assertEqual(presets[1]['name'], 'LightSpeed H3')
                 self.assertEqual(len(presets[1]['files']), 5)
                 self.assertEqual(len(presets[1]['custom_nodes']), 1)

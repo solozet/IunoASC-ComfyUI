@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import os
+import mimetypes
+import time
+import io
 import shutil
 import subprocess
 import threading
@@ -13,19 +16,25 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from huggingface_hub import HfApi, hf_hub_download
 from pydantic import BaseModel, Field
+from huggingface_hub.utils import tqdm
+from .diagnostics import runtime_status
+from .media import metadata, thumbnail, MEDIA_SUFFIXES
+from .session import collect_session, archive_stream
 
 from .core import H3_REPO, MODEL_DIR, OUTPUT_DIR, format_size, model_target, output_target
-from .presets import manifest, public_manifest, workflow_for
+from .presets import manifest, public_manifest, workflow_for, PRESET_IDS
 from .install import install_preset
 from .hf_source import parse_hf_source, weight_filename, WEIGHT_DIRECTORIES, WEIGHT_SUFFIXES
 
 MODE = os.getenv("PANEL_MODE", "models")
-if MODE not in {"models", "outputs"}:
-    raise RuntimeError("PANEL_MODE must be models or outputs")
+if MODE not in {"models", "outputs", "control"}:
+    raise RuntimeError("PANEL_MODE must be models, outputs or control")
 
 app = FastAPI(title=f"IunoASC {MODE}", docs_url=None, redoc_url=None, openapi_url=None)
 jobs: dict[str, dict] = {}
 jobs_lock = threading.Lock()
+download_lock = threading.Lock()
+sessions: dict[str, tuple] = {}
 
 
 
@@ -63,25 +72,50 @@ def _new_job(files: list[tuple], token: str, sizes: dict[str, int] | None = None
     with jobs_lock:
         jobs[job_id] = {"state": "running", "done": 0, "total": len(files) + bool(preset_id), "current": "", "error": "", "restart_required": False}
 
+    class DownloadProgress(tqdm):
+        def __init__(self, *args, **kwargs):
+            kwargs["disable"] = False
+            kwargs["file"] = io.StringIO()
+            super().__init__(*args, **kwargs)
+        def display(self, *args, **kwargs): pass
+        def update(self, n=1):
+            result=super().update(n)
+            elapsed=max(time.monotonic()-started, .001)
+            with jobs_lock:
+                jobs[job_id].update(downloaded_bytes=int(self.n),file_total_bytes=int(self.total or 0),speed_bytes_sec=int(max(0,self.n-self.initial)/elapsed),progress_available=True)
+            return result
+
+    started=time.monotonic()
+
     def run() -> None:
+        nonlocal started
         installing = False
         try:
             for file in files:
                 repo, source, destination = file[:3]
                 revision = file[3] if len(file) > 3 else 'main'
                 with jobs_lock:
-                    jobs[job_id]["current"] = source
+                    jobs[job_id].update(current=source,downloaded_bytes=0,file_total_bytes=(sizes or {}).get(destination,0),speed_bytes_sec=0,progress_available=False,attempt=1)
+                started=time.monotonic()
                 target = model_target(destination)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 expected = (sizes or {}).get(destination)
                 repair = target.is_file() and expected is not None and target.stat().st_size != expected
+                def download(**kwargs):
+                    for attempt in range(1,4):
+                        with jobs_lock: jobs[job_id]["attempt"]=attempt
+                        try:
+                            return hf_hub_download(**kwargs,tqdm_class=DownloadProgress)
+                        except Exception:
+                            if attempt==3:raise
+                            time.sleep(attempt)
                 if repo == H3_REPO and source == destination and revision == 'main':
                     # local_dir preserves the official model subdirectories.
-                    hf_hub_download(repo_id=repo, filename=source, local_dir=MODEL_DIR, token=token or None, force_download=repair)
+                    download(repo_id=repo, filename=source, local_dir=MODEL_DIR, token=token or None, force_download=repair)
                 elif repair or not target.is_file() or target.stat().st_size == 0:
                     # Keep a single copy; moving inside the same filesystem is cheap.
                     staging = MODEL_DIR / ".hf-downloads" / repo.replace("/", "_")
-                    downloaded = Path(hf_hub_download(repo_id=repo, filename=source, revision=revision, local_dir=staging, token=token or None, force_download=repair))
+                    downloaded = Path(download(repo_id=repo, filename=source, revision=revision, local_dir=staging, token=token or None, force_download=repair))
                     shutil.move(downloaded, target)
                 if expected is not None and target.stat().st_size != expected:
                     raise ValueError("Downloaded file has unexpected size")
@@ -104,13 +138,18 @@ def _new_job(files: list[tuple], token: str, sizes: dict[str, int] | None = None
                 jobs[job_id]["state"] = "failed"
                 jobs[job_id]['error_code'] = 'install_failed' if installing else 'download_failed'
 
-    threading.Thread(target=run, daemon=True).start()
+    def serial_run():
+        with jobs_lock: jobs[job_id]["state"]="queued"
+        with download_lock:
+            with jobs_lock: jobs[job_id]["state"]="running"
+            run()
+    threading.Thread(target=serial_run, daemon=True).start()
     return job_id
 
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    name = "models.html" if MODE == "models" else "outputs.html"
+    name = MODE + ".html"
     return (Path(__file__).parent / "static" / name).read_text(encoding="utf-8")
 
 
@@ -140,7 +179,7 @@ def checked_preset(preset: str):
 def all_presets():
     if MODE != "models":
         raise HTTPException(404)
-    return {"presets": [public_manifest(name) for name in ["native-h3", "my-h3"]]}
+    return {"presets": [public_manifest(name) for name in PRESET_IDS]}
 
 
 @app.get("/api/preset")
@@ -168,6 +207,8 @@ def download_preset(request: PresetRequest):
         raise HTTPException(404)
     item = checked_preset(request.preset)
     files = item['files'] + (item['optional_files'] if request.include_optional else [])
+    if not public_manifest(request.preset)['enough_space']:
+        raise HTTPException(409, {'code':'insufficient_space'})
     missing = [f for f in files if not model_target(f['filename']).is_file()
                or model_target(f['filename']).stat().st_size != f['size_bytes']]
     return {"id": _new_job([(f['repo'], f['source'], f['filename']) for f in missing], request.token, {f['filename']: f['size_bytes'] for f in missing}, request.preset)}
@@ -240,7 +281,7 @@ def outputs(path: str = Query(default="")):
         if item.is_symlink():
             continue
         rel = item.relative_to(OUTPUT_DIR).as_posix()
-        result.append({"name": item.name, "path": rel, "directory": item.is_dir(), "size": "" if item.is_dir() else format_size(item.stat().st_size), 'size_bytes': None if item.is_dir() else item.stat().st_size})
+        result.append({"name": item.name, "path": rel, "directory": item.is_dir(), "size": "" if item.is_dir() else format_size(item.stat().st_size), 'size_bytes': None if item.is_dir() else item.stat().st_size, 'video':item.suffix.lower() in MEDIA_SUFFIXES})
     return {"path": path, "files": result}
 
 
@@ -278,3 +319,62 @@ def output_archive():
             process.wait()
 
     return StreamingResponse(stream(), media_type="application/zip", headers={"Content-Disposition": 'attachment; filename="iunoasc-outputs.zip"'})
+
+
+@app.get('/api/status')
+def control_status():
+    if MODE != 'control':raise HTTPException(404)
+    return runtime_status()
+
+
+def checked_video(path):
+    if MODE != 'outputs':raise HTTPException(404)
+    try:file=output_target(path)
+    except ValueError:raise HTTPException(400, {'code':'invalid_output_selection'}) from None
+    if not file.is_file() or file.suffix.lower() not in MEDIA_SUFFIXES:raise HTTPException(404)
+    return file
+
+
+@app.get('/api/outputs/preview')
+def output_preview(path: str):
+    file=checked_video(path)
+    return FileResponse(file, media_type=mimetypes.guess_type(file.name)[0] or 'video/mp4')
+
+
+@app.get('/api/outputs/metadata')
+def output_metadata(path: str):
+    return metadata(checked_video(path))
+
+
+@app.get('/api/outputs/thumbnail')
+def output_thumbnail(path: str):
+    file=checked_video(path)
+    try:return FileResponse(thumbnail(file),media_type='image/jpeg')
+    except (OSError,subprocess.SubprocessError):raise HTTPException(415,{'code':'previewUnavailable'}) from None
+
+
+class SessionRequest(BaseModel):
+    outputs: list[str] = Field(default_factory=list, max_length=1000)
+    include_inputs: bool = True
+
+
+@app.post('/api/session')
+def export_session(request: SessionRequest):
+    if MODE not in {'outputs','control'}:raise HTTPException(404)
+    try:entries=collect_session(request.outputs,request.include_inputs)
+    except ValueError:raise HTTPException(400,{'code':'invalid_output_selection'}) from None
+    ident=uuid.uuid4().hex
+    with jobs_lock:
+        for old in list(sessions):
+            if sessions[old][0]<time.monotonic()-600: sessions.pop(old)
+        if len(sessions)>=20:raise HTTPException(429)
+        sessions[ident]=(time.monotonic(),entries,runtime_status()['versions'])
+    return {'id':ident}
+
+
+@app.get('/api/session/{ident}')
+def download_session(ident: str):
+    if MODE not in {'outputs','control'}:raise HTTPException(404)
+    with jobs_lock:item=sessions.pop(ident,None)
+    if item is None or item[0]<time.monotonic()-600:raise HTTPException(404)
+    return StreamingResponse(archive_stream(item[1],item[2]),media_type='application/zip',headers={'Content-Disposition':'attachment; filename="iunoasc-session.zip"'})

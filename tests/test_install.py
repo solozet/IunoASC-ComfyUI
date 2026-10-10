@@ -21,7 +21,7 @@ class InstallTests(unittest.TestCase):
                 self.assertTrue(install.install_preset('my-h3', lambda message: None))
                 git.assert_not_called()
             self.assertEqual((node / '__init__.py').read_text(), 'user version')
-            workflow = json.loads((root / 'user/default/workflows/lightspeed-h3.json').read_text())
+            workflow = json.loads((root / 'user/default/workflows/IunoASC/lightspeed-h3.json').read_text())
             self.assertEqual(workflow, presets.workflow_for('my-h3'))
 
     def test_failed_fetch_leaves_no_partial_install(self):
@@ -31,4 +31,4 @@ class InstallTests(unittest.TestCase):
                 with self.assertRaises(subprocess.TimeoutExpired):
                     install.install_preset('my-h3', lambda message: None)
             self.assertEqual(list((root / 'custom_nodes').iterdir()), [])
-            self.assertFalse((root / 'user/default/workflows/lightspeed-h3.json').exists())
+            self.assertFalse((root / 'user/default/workflows/IunoASC/lightspeed-h3.json').exists())

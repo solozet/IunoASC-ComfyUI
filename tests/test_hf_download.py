@@ -1,4 +1,5 @@
 """Verify source routing, explicit folders and download relocation without big files."""
+import threading
 import tempfile
 import time
 import unittest
@@ -61,13 +62,29 @@ class DownloadTests(unittest.TestCase):
                 for _ in range(2):
                     job=panel_app._new_job([('Comfy-Org/MiniMax-H3','source/x.safetensors','diffusion_models/x.safetensors','dev')],'',{'diffusion_models/x.safetensors':7})
                     for _ in range(100):
-                        if panel_app.jobs[job]['state']!='running':break
+                        if panel_app.jobs[job]['state'] in {'done','failed'}:break
                         time.sleep(.01)
                     self.assertEqual(panel_app.jobs[job]['state'],'done')
                 self.assertEqual(hf.call_count,1)
                 self.assertEqual(target('diffusion_models/x.safetensors').read_bytes(),b'weights')
                 self.assertEqual(hf.call_args.kwargs['revision'],'dev')
                 self.assertFalse((root/'source/x.safetensors').exists())
+
+    def test_real_progress_adapter_and_retry_preserve_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);attempts=[]
+            def download(**kwargs):
+                attempts.append(1)
+                if len(attempts)==1:raise ConnectionError('transient')
+                with kwargs['tqdm_class'](total=7,name='huggingface_hub.http_get',unit='B') as bar:bar.update(7)
+                path=Path(kwargs['local_dir'])/kwargs['filename'];path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'weights');return str(path)
+            with patch.object(panel_app,'MODEL_DIR',root),patch.object(panel_app,'model_target',lambda name:root/name),patch.object(panel_app,'hf_hub_download',side_effect=download),patch.object(panel_app.time,'sleep',lambda delay:None):
+                ident=panel_app._new_job([('a/b','x.safetensors','loras/x.safetensors')],'')
+                for _ in range(1000):
+                    if panel_app.jobs[ident]['state'] in {'done','failed'}:break
+                    threading.Event().wait(.001)
+                result=panel_app.jobs[ident]
+                self.assertEqual(result['state'],'done');self.assertEqual(result['downloaded_bytes'],7);self.assertEqual(result['attempt'],2)
 
 
 if __name__=='__main__':unittest.main()

@@ -8,7 +8,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from .presets import manifest, workflow_for
+from .presets import manifest, workflow_for, PRESET_IDS, WORKFLOW_NAMES
 
 COMFY_DIR = Path(os.getenv('IUNO_COMFY_DIR', '/opt/ComfyUI'))
 SPECTRUM_NAME = 'ComfyUI-Spectrum-MiniMax-H3'
@@ -21,7 +21,7 @@ def install_preset(preset_id: str, progress) -> bool:
     """Save workflow and install Spectrum; return whether Comfy must restart."""
     item = manifest(preset_id)
     with install_lock:
-        if preset_id == 'my-h3':
+        if preset_id in ('my-h3', 'experimental-h3'):
             progress('install_spectrum')
             root = COMFY_DIR / 'custom_nodes'
             root.mkdir(parents=True, exist_ok=True)
@@ -45,19 +45,37 @@ def install_preset(preset_id: str, progress) -> bool:
                     # This pinned Spectrum revision has no additional pip dependencies.
                     source.rename(target)
         progress('save_workflow')
-        workflow_dir = COMFY_DIR / 'user' / 'default' / 'workflows'
-        workflow_dir.mkdir(parents=True, exist_ok=True)
-        filename = 'lightspeed-h3.json' if preset_id == 'my-h3' else 'iunoasc-native-h3.json'
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=workflow_dir,
-                                         suffix='.json', delete=False) as handle:
-            temporary = Path(handle.name)
-            try:
-                json.dump(workflow_for(preset_id), handle, ensure_ascii=False)
-            except Exception:
-                temporary.unlink(missing_ok=True)
-                raise
-        try:
-            temporary.replace(workflow_dir / filename)
-        finally:
-            temporary.unlink(missing_ok=True)
+        save_workflow(preset_id, overwrite=False)
     return bool(item['custom_nodes'])
+
+
+def save_workflow(preset_id, overwrite=False):
+    workflow_dir=COMFY_DIR / 'user/default/workflows/IunoASC'
+    workflow_dir.mkdir(parents=True, exist_ok=True)
+    target=workflow_dir / WORKFLOW_NAMES[preset_id]
+    legacy=workflow_dir.parent / WORKFLOW_NAMES[preset_id]
+    if legacy.is_file() and not target.exists():
+        legacy.replace(target)
+    if target.exists() and not overwrite:
+        return target
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=workflow_dir, suffix='.json', delete=False) as handle:
+        temporary=Path(handle.name)
+        try:
+            json.dump(workflow_for(preset_id),handle,ensure_ascii=False)
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            raise
+    try:
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target
+
+
+def seed_workflows():
+    for preset_id in PRESET_IDS:
+        save_workflow(preset_id, overwrite=False)
+
+
+if __name__ == '__main__':
+    seed_workflows()

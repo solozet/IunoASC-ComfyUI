@@ -8,18 +8,18 @@
       "id": 5483,
       "type": "LoadImage",
       "pos": [
-        70,
-        365
+        370,
+        100
       ],
       "size": [
         240,
         310
       ],
       "flags": {
-        "collapsed": true
+        "collapsed": false
       },
       "order": 0,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "localized_name": "изображение",
@@ -67,11 +67,11 @@
         }
       },
       "widgets_values": [
-        "vlcsnap-2026-08-11-22h12m06s986.png",
+        "",
         "image"
       ],
       "widgets_values_named": {
-        "image": "vlcsnap-2026-08-11-22h12m06s986.png",
+        "image": "",
         "upload": "image"
       },
       "title": "Reference 1"
@@ -80,8 +80,8 @@
       "id": 5484,
       "type": "LoadImage",
       "pos": [
-        70,
-        430
+        650,
+        480
       ],
       "size": [
         240,
@@ -152,8 +152,8 @@
       "id": 5630,
       "type": "LoadImage",
       "pos": [
-        70,
-        495
+        650,
+        545
       ],
       "size": [
         240,
@@ -224,8 +224,8 @@
       "id": 5652,
       "type": "LoadImage",
       "pos": [
-        70,
-        560
+        650,
+        610
       ],
       "size": [
         240,
@@ -296,8 +296,8 @@
       "id": 5653,
       "type": "LoadImage",
       "pos": [
-        70,
-        625
+        650,
+        675
       ],
       "size": [
         240,
@@ -368,8 +368,8 @@
       "id": 5654,
       "type": "LoadImage",
       "pos": [
-        70,
-        690
+        650,
+        740
       ],
       "size": [
         240,
@@ -441,7 +441,7 @@
       "type": "12a903cc-4f3a-44f4-869b-ab83f139b67d",
       "title": "LightSpeed H3",
       "pos": [
-        370,
+        980,
         100
       ],
       "size": [
@@ -662,7 +662,7 @@
       "id": 5468,
       "type": "SaveVideo",
       "pos": [
-        940,
+        1530,
         100
       ],
       "size": [
@@ -759,7 +759,7 @@
       "id": 5487,
       "type": "MarkdownNote",
       "pos": [
-        1430,
+        0,
         100
       ],
       "size": [
@@ -784,7 +784,7 @@
       "id": 5711,
       "type": "ResolutionSelector",
       "pos": [
-        70,
+        650,
         100
       ],
       "size": [
@@ -2868,8 +2868,7 @@
                 "name": "output",
                 "type": "MODEL",
                 "links": [
-                  4650,
-                  4651
+                  4650
                 ]
               }
             ],
@@ -2888,7 +2887,7 @@
           },
           {
             "id": 5713,
-            "type": "LoraLoaderModelOnly",
+            "type": "IunoOptionalLora",
             "pos": [
               620,
               1020
@@ -2924,6 +2923,14 @@
                   "name": "strength_model"
                 },
                 "link": 4655
+              },
+              {
+                "name": "enabled",
+                "type": "BOOLEAN",
+                "widget": {
+                  "name": "enabled"
+                },
+                "link": 4654
               }
             ],
             "outputs": [
@@ -2932,84 +2939,24 @@
                 "name": "MODEL",
                 "type": "MODEL",
                 "links": [
-                  4652
-                ]
-              }
-            ],
-            "properties": {
-              "cnr_id": "comfy-core",
-              "ver": "0.37.0",
-              "Node name for S&R": "LoraLoaderModelOnly"
-            },
-            "widgets_values": [
-              "minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
-              1
-            ],
-            "widgets_values_named": {
-              "lora_name": "minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
-              "strength_model": 1
-            },
-            "title": "Additional LoRA"
-          },
-          {
-            "id": 5714,
-            "type": "ComfySwitchNode",
-            "pos": [
-              620,
-              1210
-            ],
-            "size": [
-              270,
-              110
-            ],
-            "flags": {},
-            "order": 21,
-            "mode": 0,
-            "inputs": [
-              {
-                "localized_name": "on_false",
-                "name": "on_false",
-                "type": "MODEL",
-                "link": 4651
-              },
-              {
-                "localized_name": "on_true",
-                "name": "on_true",
-                "type": "MODEL",
-                "link": 4652
-              },
-              {
-                "localized_name": "switch",
-                "name": "switch",
-                "type": "BOOLEAN",
-                "widget": {
-                  "name": "switch"
-                },
-                "link": 4654
-              }
-            ],
-            "outputs": [
-              {
-                "localized_name": "output",
-                "name": "output",
-                "type": "MODEL",
-                "links": [
                   4634
                 ]
               }
             ],
-            "title": "Additional LoRA • Enable",
             "properties": {
-              "cnr_id": "comfy-core",
-              "ver": "0.33.0",
-              "Node name for S&R": "ComfySwitchNode"
+              "Node name for S&R": "IunoOptionalLora"
             },
             "widgets_values": [
+              "minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
+              1,
               false
             ],
             "widgets_values_named": {
-              "switch": false
-            }
+              "lora_name": "minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors",
+              "strength_model": 1,
+              "enabled": false
+            },
+            "title": "Additional LoRA"
           },
           {
             "id": 5474,
@@ -3298,7 +3245,7 @@
           },
           {
             "id": 4634,
-            "origin_id": 5714,
+            "origin_id": 5713,
             "origin_slot": 0,
             "target_id": 5533,
             "target_slot": 0,
@@ -3409,22 +3356,6 @@
             "type": "MODEL"
           },
           {
-            "id": 4651,
-            "origin_id": 5712,
-            "origin_slot": 0,
-            "target_id": 5714,
-            "target_slot": 0,
-            "type": "MODEL"
-          },
-          {
-            "id": 4652,
-            "origin_id": 5713,
-            "origin_slot": 0,
-            "target_id": 5714,
-            "target_slot": 1,
-            "type": "MODEL"
-          },
-          {
             "id": 4653,
             "origin_id": -10,
             "origin_slot": 15,
@@ -3436,8 +3367,8 @@
             "id": 4654,
             "origin_id": -10,
             "origin_slot": 16,
-            "target_id": 5714,
-            "target_slot": 2,
+            "target_id": 5713,
+            "target_slot": 3,
             "type": "BOOLEAN"
           },
           {
@@ -3495,10 +3426,10 @@
       "rgthree-comfy": "b775441a4c5ae2853d4ff6b97a137f7f7d11e597"
     },
     "ds": {
-      "scale": 0.85,
+      "scale": 0.75,
       "offset": [
-        30,
-        30
+        40,
+        80
       ]
     },
     "ue_links": [],

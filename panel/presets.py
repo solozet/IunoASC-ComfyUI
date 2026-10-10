@@ -1,6 +1,7 @@
 """Verified weight manifests; file sizes are bytes from HF metadata (2026-09-30)."""
 from __future__ import annotations
 import json
+import shutil
 import os
 from pathlib import Path
 from .core import H3_REPO, H3_FILES, MODEL_DIR, model_target, preset_workflow
@@ -17,6 +18,10 @@ SIZES = {
  'vae_approx/taeh3.safetensors': 9791388,
  'loras/minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors': 620285592,
 }
+LIGHT_VAE = 'vae/minimax_h3_lynnreal_light_vae_int8_convrot.safetensors'
+SIZES[LIGHT_VAE] = 2137493384
+PRESET_IDS = ('native-h3', 'my-h3', 'experimental-h3')
+WORKFLOW_NAMES = {'native-h3':'iunoasc-native-h3.json','my-h3':'lightspeed-h3.json','experimental-h3':'lightspeed-h3-light-vae.json'}
 CUSTOM_NODES = [
  {'name':'Spectrum MiniMax H3','repo':'https://github.com/xmarre/ComfyUI-Spectrum-MiniMax-H3', 'ref':'dc6e1b335e1cdcd078a649add6464dab9469a587', 'state':'active','note':'Устанавливается вместе с пресетом. Имеющаяся версия сохраняется.'},
 ]
@@ -29,6 +34,11 @@ def manifest(preset_id='native-h3'):
   diffusion=os.getenv('IUNO_H3_DIFFUSION_FILE',H3_FILES[0])
   files=[weight(f) for f in [diffusion,*H3_FILES[1:]]]
   return {'id':preset_id,'name':'MiniMax H3 · официальный I2V','description':'Основной пресет · video VAE FP16 · Turbo 8 шагов.','files':files,'optional_files':[],'custom_nodes':[], 'note':'Готовый workflow для основной сборки.'}
+ if preset_id == 'experimental-h3':
+  item = manifest('my-h3')
+  item.update(id=preset_id, name='LightSpeed H3 · Light VAE', experimental=True)
+  item['files'] = [f if not f['filename'].startswith('vae/minimax_h3_video') else weight(LIGHT_VAE, repo='Kijai/MiniMax-H3-experimental', source=Path(LIGHT_VAE).name) for f in item['files']]
+  return item
  if preset_id == 'my-h3':
   files=[weight(H3_FILES[0]),weight(H3_FILES[1]),weight('vae/minimax_h3_video_vae_int8_convrot.safetensors'),weight(H3_FILES[3]),weight('loras/minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors', repo='drbaph/MiniMax-H3-Turbo-Lora-ComfyUI', source='minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors')]
   return {'id':preset_id,'name':'LightSpeed H3','description':'FL2VA INT8 · video VAE INT8 · Spectrum · Turbo LoRA.','files':files,'optional_files':[],'custom_nodes':CUSTOM_NODES,'note':'Компактный workflow + веса + Spectrum. После установки нод перезапусти ComfyUI через Manager. Для cu128 INT8/CK пока не проверен.', 'compatibility':'cu130' if os.getenv('IUNO_TORCH_INDEX','cu130')=='cu130' else 'unverified'}
@@ -41,9 +51,18 @@ def public_manifest(preset_id):
   file['ready']=path.is_file() and path.stat().st_size==file['size_bytes']
  item['size_bytes']=sum(f['size_bytes'] for f in item['files'])
  item['remaining_bytes']=sum(f['size_bytes'] for f in item['files'] if not f['ready'])
+ item['ready_bytes']=item['size_bytes']-item['remaining_bytes']
+ root=MODEL_DIR
+ while not root.exists(): root=root.parent
+ item['free_bytes']=shutil.disk_usage(root).free
+ item['enough_space']=item['free_bytes'] >= item['remaining_bytes'] + 1024**3
+ item['workflow_path']='workflows/IunoASC/'+WORKFLOW_NAMES[preset_id]
+ item['installed']=item['remaining_bytes']==0
  return item
 
 def workflow_for(preset_id):
  if preset_id=='native-h3': return preset_workflow()
  manifest(preset_id)
- return json.loads((Path(__file__).resolve().parent.parent/'workflows/minimax_h3_my.json').read_text())
+ source=(Path(__file__).resolve().parent.parent/'workflows/minimax_h3_my.json').read_text()
+ if preset_id=='experimental-h3': source=source.replace('minimax_h3_video_vae_int8_convrot.safetensors', Path(LIGHT_VAE).name).replace('LightSpeed H3', 'LightSpeed H3 · Light VAE')
+ return json.loads(source)

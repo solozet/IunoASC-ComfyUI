@@ -24,13 +24,18 @@ Total: **40,694,127,751 bytes = 40.69 GB**. The first four files are from Comfy-
 | Sampling | 5 seconds, 5 steps; Spectrum enabled |
 | Resolution | Main-canvas selector, 9:16, 2 MP, multiple 32, live dimensions |
 | Noise | Hidden inside the subgraph, randomize |
-| Reference images | Six bypassed loaders; supply your own images and enable the needed nodes |
+| Reference images | Reference 1 enabled and expanded for upload; references 2–6 collapsed and bypassed |
 | Resolution reference note | Main canvas |
-| Workflow location | /opt/ComfyUI/user/default/workflows/lightspeed-h3.json |
+| Workflow location | /opt/ComfyUI/user/default/workflows/IunoASC/lightspeed-h3.json |
 | Custom package | xmarre/ComfyUI-Spectrum-MiniMax-H3 at dc6e1b335e1cdcd078a649add6464dab9469a587 |
 
-Spectrum is the only custom-node package and has no extra pip dependencies at the pinned revision. An existing Spectrum installation is preserved. Restart ComfyUI through Manager after installing nodes. The installer saves the workflow on the Pod and also offers a browser download.
+Spectrum is the only separately installed custom-node package and has no extra pip dependencies at the pinned revision. The optional LoRA loader is bundled in the image. An existing Spectrum installation is preserved. Restart ComfyUI through Manager after installing nodes. The installer saves the workflow on the Pod and also offers a browser download.
 
 The original graph's stale duplicate prompt edge and dangling audio link were removed when packing. The effective prompt remains empty by default. Frame-count rounding follows the original H3 formula, now using the selected FPS. Changing FPS is not frame interpolation. No TAE preview or RTX upscale is included.
 
 Validation checks loader files against the manifest, both graph boundaries, defaults and install retry behavior. The compact workflow has not been fully validated through a GPU generation in the new container. The user's earlier successful local use (16 GB RAM, 12 GB VRAM, 90 GB pagefile) is not a verified container minimum. LightSpeed retains INT8/Kitchen Attention on every variant; cu128 compatibility remains unverified.
+
+
+## October 10 update
+
+Reference 1 is enabled and expanded with an empty image selection for upload; references 2–6 remain bypassed. The main canvas follows the supplied layout. The additional LoRA uses the bundled IunoASC optional loader: disabled or zero strength returns the incoming model without resolving a file. Workflows are seeded into the IunoASC workspace folder at startup and user edits are preserved. The experimental preset substitutes only LynnReal Light VAE from Kijai (2,137,493,384 bytes); its other four weights are shared. Full GPU generation and experimental image quality remain unverified.
