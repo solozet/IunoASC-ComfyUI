@@ -12,7 +12,7 @@ import threading
 import uuid
 from pathlib import Path, PurePosixPath
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Request, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from huggingface_hub import HfApi, hf_hub_download
 from pydantic import BaseModel, Field
@@ -168,6 +168,15 @@ def translations():
     return FileResponse(Path(__file__).parent / 'static' / 'i18n.json', media_type='application/json')
 
 
+@app.get('/output-backup.js')
+@app.get('/outputs-sw.js')
+@app.get('/zip-native.min.js')
+def backup_asset(request: Request):
+    if MODE != 'outputs': raise HTTPException(404)
+    name=request.url.path.rsplit('/',1)[-1]
+    return FileResponse(Path(__file__).parent/'static'/name,media_type='text/javascript',headers={'Cache-Control':'no-cache'})
+
+
 def checked_preset(preset: str):
     try:
         return manifest(preset)
@@ -281,8 +290,23 @@ def outputs(path: str = Query(default="")):
         if item.is_symlink():
             continue
         rel = item.relative_to(OUTPUT_DIR).as_posix()
-        result.append({"name": item.name, "path": rel, "directory": item.is_dir(), "size": "" if item.is_dir() else format_size(item.stat().st_size), 'size_bytes': None if item.is_dir() else item.stat().st_size, 'video':item.suffix.lower() in MEDIA_SUFFIXES})
+        result.append({"name": item.name, "path": rel, "directory": item.is_dir(), "size": "" if item.is_dir() else format_size(item.stat().st_size), 'size_bytes': None if item.is_dir() else item.stat().st_size, 'video':item.suffix.lower() in MEDIA_SUFFIXES, 'version':f'{item.stat().st_size}:{item.stat().st_mtime_ns}'})
     return {"path": path, "files": result}
+
+
+@app.get('/api/outputs/snapshot')
+def output_snapshot():
+    if MODE != 'outputs': raise HTTPException(404)
+    root=OUTPUT_DIR.resolve();files=[]
+    if root.is_dir():
+        for file in sorted(root.rglob('*')):
+            try:
+                if not file.is_file() or file.is_symlink() or not file.resolve().is_relative_to(root):continue
+                stat=file.stat()
+            except OSError:continue
+            files.append({'path':file.relative_to(root).as_posix(),'name':file.name,'size_bytes':stat.st_size,'version':f'{stat.st_size}:{stat.st_mtime_ns}'})
+            if len(files)>10000:raise HTTPException(413,{'code':'snapshotTooLarge'})
+    return {'files':files}
 
 
 @app.get("/api/outputs/file")

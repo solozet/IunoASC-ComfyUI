@@ -57,6 +57,21 @@ class FeatureTests(unittest.TestCase):
                 data=client.get('/api/outputs/metadata?path=test.mp4').json()
                 self.assertEqual((data['width'],data['height'],data['fps'],data['bit_depth']),(96,64,24.0,8))
 
+    def test_recursive_snapshot_omits_external_symlinks_and_tracks_versions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)/'outputs';(root/'video').mkdir(parents=True)
+            file=root/'video/scene.mp4';file.write_bytes(b'first')
+            external=Path(directory)/'private';external.write_bytes(b'private')
+            (root/'hidden').symlink_to(external)
+            with patch.object(api,'MODE','outputs'),patch.object(api,'OUTPUT_DIR',root):
+                client=TestClient(api.app);data=client.get('/api/outputs/snapshot').json()['files']
+                self.assertEqual([f['path'] for f in data],['video/scene.mp4'])
+                version=data[0]['version'];file.write_bytes(b'second')
+                self.assertNotEqual(client.get('/api/outputs/snapshot').json()['files'][0]['version'],version)
+                self.assertEqual(client.get('/outputs-sw.js').status_code,200)
+                self.assertEqual(client.get('/output-backup.js').status_code,200)
+                self.assertEqual(client.get('/zip-native.min.js').status_code,200)
+
     def test_streamed_session_includes_only_selected_outputs_and_no_tokens(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);comfy=root/'comfy';(root/'inputs').mkdir();(root/'outputs').mkdir()

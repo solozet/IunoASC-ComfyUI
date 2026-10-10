@@ -230,6 +230,23 @@ Startup preflight reports the base CUDA, PyTorch CUDA, GPU, driver and VRAM. It 
 
 **A failed preflight exits the container but does not stop the paid RunPod allocation.** Save the logs and stop a failing Pod yourself. The image cannot install a host driver or fix a broken GPU host. A successful build is not a GPU generation test.
 
+## Live monitoring and browser output backup
+
+| Interface | Added controls |
+| --- | --- |
+| Control panel · 8082 | GPU/CPU load, RAM/VRAM, swap, GPU temperature/power/clock, CPU sensors when exposed, disk, queue and panel uptime; refreshes every 5 seconds |
+| Resource charts | Last 5 minutes while the control page is open; utilization, memory, GPU temperature and power |
+| Models · 8081 | Download progress stays at the bottom of the screen while scrolling |
+| Outputs · 8083 | Folder listing refreshes every 3 seconds without reloading the page or interrupting playback |
+| Browser backup | Automatically copies unchanged output files into this browser; shows saved file count, size and copy progress |
+| Red download button | Exports saved copies as ZIP even if the Pod is offline; individual saved-file downloads are also available |
+
+CPU and RAM indicate whether readings describe the container or the host. Missing sensor values display a dash. RAM includes file cache. The panel flags RAM above 90%, VRAM above 95%, GPU temperature above 85 °C and less than 10% free disk space. The control screenshot uses example hardware readings and is marked **DEMO**.
+
+Keep the outputs page open while the Pod runs and wait for files to appear in **Saved in this browser**. Only complete copies already saved in the browser remain downloadable after termination. Browser backup belongs to that Pod URL and browser profile; it uses local disk space, and private browsing, clearing site data or browser eviction can remove it. Background tabs may refresh less frequently.
+
+Chrome/Edge can stream a large emergency ZIP directly to a chosen file. Where that API is unavailable, in-memory ZIP export is limited to 512 MiB; larger backups can still be downloaded one file at a time. Browser backup saves outputs, not the workflows and settings included by **Save session · ZIP**.
+
 ## Building
 
 | Step | Action |

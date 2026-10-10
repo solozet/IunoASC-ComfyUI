@@ -18,6 +18,7 @@ jobs:
       - run: npm install --prefix /tmp/iuno-ui-tests jsdom@26
       - run: IUNO_JSDOM_PATH=/tmp/iuno-ui-tests/node_modules/jsdom node tests/test_frontend.cjs
       - run: node tests/test_workflow_open.cjs
+      - run: node tests/test_browser_backup.cjs
 
   docker:
     needs: checks
