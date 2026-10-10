@@ -64,5 +64,7 @@ def workflow_for(preset_id):
  if preset_id=='native-h3': return preset_workflow()
  manifest(preset_id)
  source=(Path(__file__).resolve().parent.parent/'workflows/minimax_h3_my.json').read_text()
- if preset_id=='experimental-h3': source=source.replace('minimax_h3_video_vae_int8_convrot.safetensors', Path(LIGHT_VAE).name).replace('LightSpeed H3', 'LightSpeed H3 · Light VAE')
+ if preset_id=='experimental-h3':
+  source=source.replace('minimax_h3_video_vae_int8_convrot.safetensors', Path(LIGHT_VAE).name).replace('LightSpeed H3', 'LightSpeed H3 · Light VAE')
+  source=source.replace(f'https://huggingface.co/{H3_REPO}/resolve/main/{LIGHT_VAE}', f'https://huggingface.co/Kijai/MiniMax-H3-experimental/resolve/main/{Path(LIGHT_VAE).name}')
  return json.loads(source)

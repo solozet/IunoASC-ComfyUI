@@ -45,6 +45,21 @@ class FeatureTests(unittest.TestCase):
         nodes=[n for d in w['definitions']['subgraphs'] for n in d['nodes']]
         self.assertTrue(any(n['type']=='VAELoader' and 'lynnreal' in n['widgets_values'][0] for n in nodes))
 
+    def test_model_download_annotations_match_selected_weights_and_sources(self):
+        for preset_id in ('my-h3', 'experimental-h3'):
+            workflow=presets.workflow_for(preset_id)
+            expected={Path(f['filename']).name:f for f in presets.manifest(preset_id)['files']}
+            nodes=[n for graph in workflow['definitions']['subgraphs'] for n in graph['nodes']]
+            count=0
+            for node in nodes:
+                for model in node.get('properties',{}).get('models',[]):
+                    count+=1
+                    self.assertEqual(model['name'],node['widgets_values'][0])
+                    weight=expected[model['name']]
+                    self.assertEqual(model['directory'],Path(weight['filename']).parent.as_posix())
+                    self.assertEqual(model['url'],f"https://huggingface.co/{weight['repo']}/resolve/main/{weight['source']}")
+            self.assertEqual(count,4)
+
     def test_playback_range_and_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);video=root/'test.mp4'

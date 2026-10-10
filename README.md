@@ -1,104 +1,86 @@
 # IunoASC ComfyUI
 
-ComfyUI for RunPod with MiniMax H3 presets, classic Manager, one-click model installation, a control panel and a video gallery. Weights are downloaded on demand; they are not bundled in the image.
+[English](README.md) · [Русский](README.ru.md) · [Docker Hub](https://hub.docker.com/r/solozeet/comfyui/tags) · [Build status](https://github.com/solozet/IunoASC-ComfyUI/actions/workflows/build.yml)
 
-[Docker Hub](https://hub.docker.com/r/solozeet/comfyui/tags) · [Build status](https://github.com/solozet/IunoASC-ComfyUI/actions/workflows/build.yml) · [ComfyUI v0.39.0](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.39.0)
+ComfyUI for RunPod with MiniMax H3 presets, classic Manager, a model installer, live resource monitoring and a video gallery. Weights are downloaded on demand.
 
 ## Quick start
 
 | RunPod template field | Value |
 | --- | --- |
-| Container image | `solozeet/comfyui:cu130` |
-| Start Command | **Empty** — the image starts its own services |
-| HTTP ports | `3000,8081,8082,8083` |
-| Container Disk | **150 GB** for the image, presets and working output space |
-| Volume Disk / network volume | Not required by this setup |
+| Container image | **`solozeet/comfyui:cu130`** |
+| Start Command | **Empty** |
+| HTTP ports | **`3000,8081,8082,8083`** |
+| Container Disk | **150 GB** recommended for the image, weights and outputs |
 | Required environment variables | **None** |
-| Login / password | None |
+| Login / password | **None** |
 
-1. Launch the Pod and check its logs for `[IunoASC] GPU preflight passed` and the ComfyUI ready message.
-2. Open the models panel on port **8081** and choose a preset. **Install preset** downloads missing weights, saves the workflow on the Pod. Existing user edits are preserved.
-3. For **LightSpeed H3**, restart **ComfyUI through Manager** after installing Spectrum. Click **Open in ComfyUI**, or use **Workflows → IunoASC**. Workflow JSON download remains available.
-4. Download finished outputs from port **8083** before deleting or migrating the Pod.
+1. Launch the Pod. Wait for `[IunoASC] GPU preflight passed` and the ComfyUI ready message in its logs.
+2. Open **Models & presets · 8081**, choose a preset and click **Install preset**.
+3. After installing Spectrum for LightSpeed or the experimental preset, restart **ComfyUI through Manager**.
+4. Click **Open in ComfyUI**, or select **Workflows → IunoASC**. Upload a reference image, set your prompt and start generation.
+5. Open **Outputs · 8083** to watch videos, download results and save your session.
 
-If the direct ComfyUI link from RunPod returns HTTP 403, try **ComfyUI ↗** in the models panel. ComfyUI's cross-site origin check can reject a navigation from another site. This check is not authentication.
+Workflows are available in the IunoASC folder from first startup. Preset installation downloads missing weights and any required custom-node package; existing workflow edits and Spectrum installations are preserved. Download progress stays at the bottom of the screen while scrolling. Repeat a failed download to resume installation with completed files reused.
 
 ## Interfaces
 
 | HTTP port | Interface | Features |
 | --- | --- | --- |
-| **3000** | ComfyUI | Native H3 nodes, classic Manager interface |
-| **8081** | Models & presets | Three compact preset cards, collapsible weight lists, HF weight downloads with explicit destination folders |
-| **8082** | Control panel | GPU/VRAM, host driver, component versions, container/PyTorch CUDA, ComfyUI status and queue, free disk space |
-| **8083** | Outputs | Video thumbnails and playback, metadata, selected session export, individual downloads and streaming ZIP |
+| **3000** | ComfyUI | H3 generation, workflows, classic Manager |
+| **8081** | Models & presets | Preset installation, collapsible weight lists, Hugging Face downloads, progress tray |
+| **8082** | Control panel | GPU/CPU, RAM/VRAM, swap, sensors, charts, disk, versions and ComfyUI queue |
+| **8083** | Outputs | Video gallery, playback, file downloads, session ZIP and browser backup |
 
-All three panels support **English, Russian, German, French, Simplified Chinese and Japanese**. Use the language selector in the header. The choice is stored in the browser and carried in links between ports. Browser language is used for the initial selection, with English as the fallback.
+The panels support **English, Russian, German, French, Simplified Chinese and Japanese**. The language selector is on the left of the navigation links; the choice is saved in your browser and carried between panels.
 
-<details>
-<summary>Models and presets panel</summary>
-
-![Models, presets and Hugging Face weight downloads](docs/images/models.png)
-
-</details>
+Each port has its own HTTPS address: `https://POD_ID-PORT.proxy.runpod.net/`. **These endpoints have no authentication: anyone with access to their URLs can use them.** If RunPod's direct ComfyUI link returns HTTP 403, try **ComfyUI ↗** in a panel. The origin check is not password protection.
 
 <details>
-<summary>Outputs panel</summary>
+<summary>Models and presets</summary>
 
-![Output downloads and ZIP archive](docs/images/outputs.png)
+![Models, presets and Hugging Face downloads](docs/images/models.png)
 
 </details>
-
-These are HTML-rendered previews of the actual panel source and API data, converted through PDF to PNG. They show a fresh setup with no downloaded weights or outputs; the control panel shows the render environment (no GPU). PDF form rendering can differ slightly from a browser.
 
 <details>
 <summary>Control panel</summary>
 
-![Control panel and runtime status](docs/images/control.png)
+![Control panel](docs/images/control.png)
+
+The control screenshot uses example readings and is marked **DEMO**.
 
 </details>
 
-RunPod provides a separate HTTPS address for each port: `https://POD_ID-PORT.proxy.runpod.net/`. Links between the panels select the correct port automatically. These endpoints have no password; anyone with access to their URLs can use them.
+<details>
+<summary>Outputs</summary>
 
-## Presets
+![Outputs, downloads and browser backup](docs/images/outputs.png)
+
+</details>
+
+## Main presets
 
 | | Official MiniMax H3 I2V | **LightSpeed H3** |
 | --- | --- | --- |
-| Workflow | Adapted Comfy Org native I2V example | Compact subgraph based on the user-edited workflow |
-| Diffusion model | FL2VA pruned INT8 ConvRot; FP8 scaled in cu128 | FL2VA pruned INT8 ConvRot |
+| Workflow | Adapted Comfy Org I2V example | Compact subgraph with video and LoRA controls |
+| Diffusion model | FL2VA INT8 ConvRot; FP8 scaled in cu128 | FL2VA INT8 ConvRot |
 | Text encoder | Qwen3-VL 32B NVFP4 AWQ | Same encoder |
 | Video VAE | FP16 | **INT8 ConvRot** |
 | Audio VAE | FP32 | Same audio VAE |
 | LoRA | Official 8-step Turbo | Turbo v4 + optional user LoRA |
-| Custom nodes | None required by the example | **Spectrum MiniMax H3** |
-| Selected sampling steps | 8 | 5 in the supplied JSON |
+| Custom-node package installed with preset | None | **Spectrum MiniMax H3** |
+| Default steps | 8 | **5** |
 | Weight files | 5 | 5 |
-| Total weights, decimal GB | **44.43 GB** with INT8; **44.41 GB** with FP8 | **40.69 GB** |
-| Install button | Weights + workflow | Weights + workflow + Spectrum |
+| Weight size | **44.43 GB** with INT8; **44.41 GB** with FP8 | **40.69 GB** |
 
-With the default **cu130 official preset** already installed, LightSpeed adds the **2.81 GB INT8 video VAE** and **0.62 GB Turbo v4 LoRA**. Both presets together use **47.86 GB** in weights. These totals exclude the image, input media, outputs and caches. cu128 uses a different diffusion file, so that file is not shared with LightSpeed.
+Sizes use decimal GB and cover weights only. With the cu130 official preset installed, LightSpeed downloads another **3.43 GB**: its INT8 video VAE and Turbo v4 LoRA. Both main presets together use **47.86 GB**. cu128's official preset uses a separate diffusion file.
 
-### Experimental: LightSpeed H3 · Light VAE
+### LightSpeed H3 — source and weights
 
-| Item | Value |
-| --- | --- |
-| Video VAE | `minimax_h3_lynnreal_light_vae_int8_convrot.safetensors` |
-| Source | [Kijai/MiniMax-H3-experimental](https://huggingface.co/Kijai/MiniMax-H3-experimental/blob/main/minimax_h3_lynnreal_light_vae_int8_convrot.safetensors) |
-| VAE size | **2.137 GB** / 2,137,493,384 bytes |
-| Total preset weights | **40.02 GB** |
-| Additional download with LightSpeed installed | **2.137 GB**; the other four files are reused |
-| All three presets together, cu130 | **50.00 GB** in weights |
-| Workflow | `IunoASC/lightspeed-h3-light-vae.json`; same generation settings as LightSpeed |
-| Validation | Manifest and workflow checked; speed, quality, HDR and full GPU generation **not yet verified** |
+Based on **[MiniMax H3 Ultra Fastest True 4 Steps + HD Sound | 6GB VRAM 16GB RAM [V8 Update] Lightning Speed](https://civitai.com/models/2835250?modelVersionId=3305336)** by **[RedditUser9811](https://civitai.com/user/RedditUser9811)**.
 
-The Light VAE variant is an experiment, not a replacement for the existing presets. Compare dark detail, flicker, grain and HDR on the same inputs and seed before adopting it. cu128 INT8/Kitchen compatibility remains unverified.
-
-### LightSpeed H3 — source and credit
-
-LightSpeed H3 is based on **[MiniMax H3 Ultra Fastest True 4 Steps + HD Sound | 6GB VRAM 16GB RAM [V8 Update] Lightning Speed](https://civitai.com/models/2835250?modelVersionId=3305336)** by **[RedditUser9811](https://civitai.com/user/RedditUser9811)**.
-
-The original workflow was simplified by the user to the branches and weights they actually use, then supplied as `MY.json`. This preset packages it as a compact native subgraph with editable video settings and separate Turbo/user LoRA controls. The source title's “4 Steps” and memory figures describe the upstream resource; the supplied JSON selects **5 steps** and is not a verified hardware minimum for this container.
-
-| LightSpeed weight | ComfyUI directory | Size |
+| Weight file | ComfyUI model directory | Size |
 | --- | --- | ---: |
 | `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `diffusion_models` | 20.97 GB |
 | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `text_encoders` | 15.69 GB |
@@ -106,155 +88,137 @@ The original workflow was simplified by the user to the branches and weights the
 | `minimax_h3_audio_vae_fp32.safetensors` | `vae` | 0.61 GB |
 | `minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors` | `loras` | 0.62 GB |
 
-The first four weights come from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3); Turbo v4 comes from [drbaph/MiniMax-H3-Turbo-Lora-ComfyUI](https://huggingface.co/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI). The selected loader filenames determine the downloads; old REF2VA and FP16 VAE metadata inside the JSON is not used to select weights.
-
-### What installation does
-
-| Component | Behavior |
-| --- | --- |
-| Weights | Downloads missing files; checks expected byte sizes; reuses matching files |
-| Workflow | Available at first startup in `/opt/ComfyUI/user/default/workflows/IunoASC`; preserved on restart; JSON download and open-in-ComfyUI links available |
-| LightSpeed workflow filename on Pod | `lightspeed-h3.json` |
-| Spectrum | Installs [ComfyUI-Spectrum-MiniMax-H3](https://github.com/xmarre/ComfyUI-Spectrum-MiniMax-H3) at `dc6e1b335e1cdcd078a649add6464dab9469a587` |
-| Existing Spectrum installation | Preserved; not overwritten or upgraded |
-| ComfyUI restart | Manual through Manager to load newly installed nodes |
-| Status after page reload | Rechecks weight files on disk; matching sizes show as ready |
-
-LightSpeed has Turbo v4 enabled at strength 1.0. Its additional LoRA is disabled by default and reuses the Turbo filename as a valid placeholder until you select your own file. There is no TAE preview or RTX upscale. Reference 1 is expanded and enabled: upload your own image. References 2–6 are collapsed and bypassed. The bundled IunoASC optional LoRA node returns the unchanged model when disabled, including with an empty selection. Spectrum is its only separately installed custom-node package; the pinned snapshot has no additional pip dependencies.
-
-The official I2V example is adapted from Comfy Org's workflow; its MIT license is included in [`workflows/LICENSE`](workflows/LICENSE).
+The first four files come from [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3); Turbo v4 comes from [drbaph/MiniMax-H3-Turbo-Lora-ComfyUI](https://huggingface.co/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI). The installer also installs [Spectrum MiniMax H3](https://github.com/xmarre/ComfyUI-Spectrum-MiniMax-H3).
 
 ### LightSpeed controls
 
 | Control | Default / behavior |
 | --- | --- |
-| Prompt | Editable inside the compact node; empty by default |
-| Resolution | Main-canvas selector with aspect ratio, megapixels and live dimensions; 9:16, 2 MP, multiple 32 |
-| Duration / steps | 5 seconds / 5 steps |
-| FPS | 24; also drives frame count, rounded to H3's supported frame lengths |
-| Color / depth | HDR / 10-bit; SDR and other supported bit depths selectable |
-| Turbo v4 LoRA | Enabled / strength 1.0 |
-| Additional LoRA | File selector, enable switch and strength; disabled by default |
+| Prompt | Empty; editable in the compact node |
+| Resolution | 9:16, 2 MP, multiple of 32; aspect ratio and dimensions on the main canvas |
+| Duration / steps | **5 seconds / 5 steps** |
+| FPS | **24**; also determines the supported frame count |
+| Color / bit depth | **HDR / 10-bit**; SDR and other supported depths selectable |
+| Turbo v4 LoRA | **Enabled, strength 1.0** |
+| Additional LoRA | **Disabled**; independent file, enable switch and strength |
 | Spectrum | Enabled; detailed settings inside the subgraph |
-| Noise | Inside the subgraph; randomize by default |
+| Noise | Inside the subgraph; **randomize** |
+| Reference 1 | Enabled and expanded; upload your image |
+| References 2–6 | Collapsed and bypassed |
 | Resolution reference table | On the main canvas |
 
-### Download your own weights
+The additional LoRA initially selects the installed Turbo file as a placeholder. An empty selection also works while the additional LoRA is disabled.
 
-Paste `author/repository`, a Hugging Face repository URL, or a `blob`/`resolve` file URL. Click **Find files**, choose a file and its type, then **Download weight**. A direct file URL preselects that file. The selected type determines the destination; the downloader does not infer model architecture or compatibility.
+### Experimental preset: LightSpeed H3 · Light VAE
 
-| Selected type | ComfyUI destination |
+| Item | Value |
 | --- | --- |
-| LoRA (default) | `models/loras` |
+| Video VAE | `minimax_h3_lynnreal_light_vae_int8_convrot.safetensors` |
+| Source | [Kijai/MiniMax-H3-experimental](https://huggingface.co/Kijai/MiniMax-H3-experimental/blob/main/minimax_h3_lynnreal_light_vae_int8_convrot.safetensors) |
+| VAE size | **2.137 GB** |
+| Total weights | **40.02 GB** |
+| Additional download with LightSpeed installed | **2.137 GB**; the other four files are reused |
+| All three presets together, cu130 | **50.00 GB** in weights |
+| Workflow | `IunoASC/lightspeed-h3-light-vae.json`; LightSpeed settings |
+| GPU validation | Speed, quality and HDR **not yet verified** |
+
+## Download your own weights
+
+Paste `author/repository`, a Hugging Face repository URL or a `blob`/`resolve` file URL. Click **Find files**, choose the file and destination type, then **Download weight**. A direct file link preselects that file. An optional HF token can be entered for repositories that require access.
+
+| Selected type | Destination |
+| --- | --- |
+| LoRA — default | `models/loras` |
 | Diffusion model | `models/diffusion_models` |
 | Text encoder | `models/text_encoders` |
 | VAE | `models/vae` |
 
-Supported file extensions: `.safetensors`, `.gguf`, `.ckpt`, `.bin`, `.pt`, `.pth`. Listing a file does not guarantee that ComfyUI has the loader needed for that format. Files are saved under their basename; an existing non-empty file of that name is reused. Preset weights additionally check exact byte sizes. Refresh ComfyUI's model lists after downloading and choose the file in its loader.
+Files are saved under their basename. **An existing non-empty file with the same name is reused, even if the repository differs.** Preset downloads also check the expected byte size. Refresh ComfyUI's model lists after downloading and select the file in the appropriate loader.
 
-## Results and session backup
+## Control panel
 
-| Action | Behavior |
+Readings refresh every **5 seconds**. Charts show the last **5 minutes while the page is open**.
+
+| Area | Readings |
 | --- | --- |
-| Watch video | Opens the original in a browser player; supports byte ranges for seeking |
-| Thumbnail | Generated on demand from the first frame; cached, without rewriting the original |
-| Video information | Resolution, FPS, codec, pixel bit depth and transfer/primaries metadata, obtained with ffprobe |
-| Unsupported codec / incomplete file | Shows a message; original download remains available |
-| Save session | Workflows, ComfyUI UI settings, optional inputs, selected outputs and a version manifest |
-| Session ZIP | Streams directly to the browser; no second archive on Pod disk |
-| Excluded from session | Model weights, HF downloader tokens and Manager credentials/configuration |
+| GPU | Name, driver, load, used/total VRAM, temperature, power draw/limit and clock |
+| CPU | Load, available cores, temperature and power when host sensors are exposed |
+| Memory | Used/total RAM, file cache and swap |
+| ComfyUI | Online status, running and pending jobs |
+| Storage | Used, free and total disk space |
+| Software | ComfyUI, Manager, Kitchen, PyTorch and container/PyTorch CUDA versions |
+| Charts | GPU/CPU load, RAM/VRAM usage, GPU temperature and power |
+| Warnings | RAM ≥ 90%, VRAM ≥ 95%, GPU ≥ 85 °C, free disk space < 10% |
 
-Select output checkboxes, then **Save session · ZIP**. Nothing is deleted. To restore on a new Pod, install the same preset weights/nodes, then copy the archive's `workflows/` into `/opt/ComfyUI/user/default/workflows/`, `inputs/` into `/data/inputs/`, and `outputs/` into `/data/outputs/`. Optional `settings/comfy.settings.json` goes in `/opt/ComfyUI/user/default/` after backing up any current UI settings. Refresh ComfyUI. This archive does not automatically reproduce dependencies or restore the Pod.
+CPU and memory readings are labelled **Container** or **Host**; host readings can include other workloads. RAM usage includes file cache. A dash indicates an unavailable sensor. Uptime describes the control-panel service.
 
-HDR playback depends on browser codec support and the display. No SDR preview or automatic video transcoding is added. Metadata labels report file tags; they do not certify HDR mastering.
+## Outputs and backup
 
-Preset cards show total, ready and remaining bytes plus free space. Shared weights are reused; installation reserves at least 1 GiB of working space. Downloads run serially, show available HF byte progress and speed, and retry transient failures up to three attempts. If a transport provides no byte callback, the UI says so. After failure, retry the install/download; completed files are reused. Re-enter an HF token if needed.
+The folder listing refreshes every **3 seconds** without reloading the page or interrupting playback.
 
-## Image variants
+| Action | Result |
+| --- | --- |
+| Preview | Watch a video in the page |
+| Video information | Resolution, FPS, codec, bit depth and color metadata |
+| Download file / outputs ZIP | Save an individual file or all outputs |
+| Save session · ZIP | Save workflows, UI settings, optional inputs, selected outputs and component versions |
+| Browser backup | Copy output files to this browser; show saved count, size and progress |
+| Red download button | Export saved browser copies even when the Pod is offline |
 
-| Image suffix | NVIDIA base CUDA | PyTorch | Default attention / diffusion | Host driver policy |
+**Save session** excludes model weights, HF tokens and Manager configuration. Select output checkboxes and click **Save session · ZIP**. To restore, follow [Restoring a session](docs/RESTORE.md).
+
+HDR playback requires a compatible browser, codec and display. If a preview cannot play, download the original file.
+
+### Browser backup — emergency downloads
+
+Keep the outputs page open while the Pod runs and wait for files to appear in **Saved in this browser**. **Only complete copies already saved locally can be downloaded after Pod termination.** You can disable automatic copying with the backup switch.
+
+| Detail | Behavior |
+| --- | --- |
+| Local storage | Uses disk space on your computer |
+| Scope | Bound to this Pod URL and browser profile |
+| Large ZIP in Chrome/Edge | Streams to a chosen file when the save-file API is available |
+| Other browsers | In-memory ZIP up to **512 MiB**; individual saved-file downloads remain available |
+| Clearing site data / private browsing / browser eviction | Can remove saved copies |
+| Background tab | Refreshing and copying may slow down |
+
+Browser backup contains outputs. Use **Save session · ZIP** to also preserve workflows and settings.
+
+## Image variants and versions
+
+| Image suffix | NVIDIA base CUDA | PyTorch | Default attention / official diffusion | Driver required by this image |
 | --- | --- | --- | --- | --- |
-| **`cu130`** | 13.0.2 | 2.9.1+cu130 | Comfy Kitchen / INT8 ConvRot | ≥ 580.95.05 |
-| `cu128` | 12.8.1 | 2.9.1+cu128 | Standard attention / FP8 scaled | ≥ 570.124.06 |
+| **`cu130`** | **13.0.2** | **2.9.1+cu130** | Comfy Kitchen / INT8 ConvRot | ≥ 580.95.05 |
+| `cu128` | 12.8.1 | 2.9.1+cu128 | Standard / FP8 scaled | ≥ 570.124.06 |
 | `cu131` | 13.1.1 | 2.9.1+cu130 | Comfy Kitchen / INT8 ConvRot | ≥ 590.48.01 |
 | `cu132` | 13.2.0 | 2.9.1+cu130 | Comfy Kitchen / INT8 ConvRot | ≥ 595.45.04 |
 
-Use `solozeet/comfyui:<suffix>` to switch variants. Each also has a ComfyUI-release tag such as `solozeet/comfyui:comfy0.39.0-cu130`. Both tag forms are updated by rebuilds; use an image digest if you need an immutable build.
+Use `solozeet/comfyui:<suffix>`. **cu131 and cu132 are experimental base variants; both use PyTorch CUDA 13.0.** Driver thresholds are this project's conservative startup policy; [technical details](docs/DEVELOPMENT.md#driver-policy). LightSpeed and Light VAE keep INT8/Kitchen settings; their **cu128 compatibility is unverified**.
 
-**cu131 and cu132 are experimental NVIDIA-base variants. They still use the PyTorch CUDA 13.0 wheel.** A newer base does not upgrade the wheel's CUDA dependencies or repair a host driver. See [PyTorch 2.9.1 packages](https://pytorch.org/get-started/previous-versions/#v291).
+Release tags such as `comfy0.39.0-cu130` and short tags are updated by rebuilds. Use an image digest to pin a particular build.
 
-The driver thresholds are this project's conservative policy, not universal NVIDIA minimums. They use the paired drivers from NVIDIA's release notes: [12.8.1](https://docs.nvidia.com/cuda/archive/12.8.1/cuda-toolkit-release-notes/index.html), [13.0.2](https://docs.nvidia.com/cuda/archive/13.0.2/cuda-toolkit-release-notes/index.html), [13.1.1](https://docs.nvidia.com/cuda/archive/13.1.1/cuda-toolkit-release-notes/index.html), [13.2.0](https://docs.nvidia.com/cuda/archive/13.2.0/cuda-toolkit-release-notes/index.html). RunPod's CUDA filter helps select hosts; the exact driver and GPU checks still come from startup logs.
-
-LightSpeed keeps the supplied INT8/Kitchen Attention settings in every image. Its compatibility with **cu128 is unverified**; the cu128 default applies to the official preset.
-
-## Included stack
-
-| Component | Version / mode |
+| Component | Included version |
 | --- | --- |
-| ComfyUI | **v0.39.0** |
-| ComfyUI Manager | **4.3**, enabled with classic UI |
+| ComfyUI | **0.39.0** |
+| ComfyUI Manager | **4.3**, classic interface |
 | Comfy Kitchen | **0.2.37** |
 | PyTorch / torchvision / torchaudio | **2.9.1 / 0.24.1 / 2.9.1** |
-| Model downloads | Hugging Face Hub |
-| Web panels | FastAPI / Uvicorn |
-| ComfyUI gateway | nginx |
 
-The IunoASC helper node and open-workflow link are bundled under `custom_nodes/iunoasc_tools`; they require no extra weights or pip packages.
+[ComfyUI 0.39.0 release notes](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.39.0) · [Development, dependencies and validation](docs/DEVELOPMENT.md)
 
-Classic Manager uses `--enable-manager --enable-manager-legacy-ui`; no separate Manager port or installation is needed. ComfyUI 0.39.0 includes the H3 VAE offload fix, earlier release of embedding temporaries and support for LynnReal Light VAE; see its [release notes](https://github.com/Comfy-Org/ComfyUI/releases/tag/v0.39.0).
+## Storage and startup errors
 
-## Storage and configuration
-
-| Item | Location / behavior |
+| Data | Pod location |
 | --- | --- |
-| Models | `/data/models`, linked to ComfyUI's `models` directory |
-| Input media | `/data/inputs` |
-| Generated outputs | `/data/outputs` |
-| HF tokens | Optional fields in the downloader; not saved in image or configuration |
+| Models | `/data/models` |
+| Inputs | `/data/inputs` |
+| Outputs | `/data/outputs` |
+| Workflows | `/opt/ComfyUI/user/default/workflows/IunoASC` |
 
-This setup uses Container Disk rather than persistent storage. Save outputs and any custom changes before deleting or migrating the Pod. Job progress lives in memory: restarting the models panel loses the progress record, but repeating installation reuses completed weights of the expected size.
+**This setup uses temporary Container Disk. Save outputs and custom changes before deleting or migrating the Pod.** HF tokens entered in the downloader are not saved in configuration.
 
-## Validation and troubleshooting
+Startup preflight checks the driver, CUDA and small GPU operations before launching the services. **If it fails, the container exits but the paid RunPod allocation continues. Save the logs and stop the failing Pod yourself.** Host-driver and GPU faults require attention from the hosting provider.
 
-| Check | Status / scope |
-| --- | --- |
-| CI tests | Preset manifests, disabled empty LoRA, preserved workspace, playback byte ranges, metadata, session ZIP contents, HF progress/retries and routing, preflight errors |
-| Panel checks | All six dictionaries, three pages, video playback and selected session export, language persistence and cross-port links |
-| Image build checks | CPU imports; public services on all four ports; three preset/workflow APIs; output file and ZIP downloads |
-| Spectrum installation | Pinned Git snapshot and repeat installation verified in a temporary directory |
-| Prior GPU startup | CUDA/Kitchen smoke tests and ComfyUI startup passed on an RTX 4090 with cu130 |
-| Full generation in this updated image | **Not yet validated on GPU** |
-| LightSpeed local use | User reports 16 GB RAM, 12 GB VRAM and a 90 GB pagefile; not a container benchmark |
+The latest image builds and automated checks passed. Full H3 generation in the latest images has not yet been validated on GPU.
 
-Startup preflight reports the base CUDA, PyTorch CUDA, GPU, driver and VRAM. It tests CUDA initialization, FP16 matrix multiplication, standard attention and, for Kitchen images, CUDA quantization. It has a 90-second timeout; it does not validate full H3 generation or peak memory use.
-
-**A failed preflight exits the container but does not stop the paid RunPod allocation.** Save the logs and stop a failing Pod yourself. The image cannot install a host driver or fix a broken GPU host. A successful build is not a GPU generation test.
-
-## Live monitoring and browser output backup
-
-| Interface | Added controls |
-| --- | --- |
-| Control panel · 8082 | GPU/CPU load, RAM/VRAM, swap, GPU temperature/power/clock, CPU sensors when exposed, disk, queue and panel uptime; refreshes every 5 seconds |
-| Resource charts | Last 5 minutes while the control page is open; utilization, memory, GPU temperature and power |
-| Models · 8081 | Download progress stays at the bottom of the screen while scrolling |
-| Outputs · 8083 | Folder listing refreshes every 3 seconds without reloading the page or interrupting playback |
-| Browser backup | Automatically copies unchanged output files into this browser; shows saved file count, size and copy progress |
-| Red download button | Exports saved copies as ZIP even if the Pod is offline; individual saved-file downloads are also available |
-
-CPU and RAM indicate whether readings describe the container or the host. Missing sensor values display a dash. RAM includes file cache. The panel flags RAM above 90%, VRAM above 95%, GPU temperature above 85 °C and less than 10% free disk space. The control screenshot uses example hardware readings and is marked **DEMO**.
-
-Keep the outputs page open while the Pod runs and wait for files to appear in **Saved in this browser**. Only complete copies already saved in the browser remain downloadable after termination. Browser backup belongs to that Pod URL and browser profile; it uses local disk space, and private browsing, clearing site data or browser eviction can remove it. Background tabs may refresh less frequently.
-
-Chrome/Edge can stream a large emergency ZIP directly to a chosen file. Where that API is unavailable, in-memory ZIP export is limited to 512 MiB; larger backups can still be downloaded one file at a time. Browser backup saves outputs, not the workflows and settings included by **Save session · ZIP**.
-
-## Building
-
-| Step | Action |
-| --- | --- |
-| Docker Hub | Create the `comfyui` repository |
-| GitHub secrets | Set `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` |
-| Publish | A push to `main` builds and publishes all four variants |
-| Manual build | Run **Build IunoASC ComfyUI** in GitHub Actions |
-| Documentation-only changes | Use `[skip ci]` to avoid an unnecessary image rebuild |
-
-Workflow: [`.github/workflows/build.yml`](.github/workflows/build.yml).
+The adapted official workflow's MIT license is included in [workflows/LICENSE](workflows/LICENSE).
